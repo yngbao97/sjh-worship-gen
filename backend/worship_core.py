@@ -821,19 +821,36 @@ def _build_praise_src_pptx(template_path: str, songs: list) -> str:
                    if _lyric2_idx is not None else None)
     lyric2_alt_xml = etree.tostring(_lyric2_alt).decode() if _lyric2_alt is not None else None
 
-    def _add(spTree_tmpl, rels, with_wipe, is_sep=False):
-        sl = blank_prs.slides.add_slide(layout_sep if is_sep else layout_lyric)
+    def _add_sep():
+        """구분 슬라이드 추가 - 텍스트 완전히 비운 빈 슬라이드"""
+        sl = blank_prs.slides.add_slide(layout_sep)
         sp = sl.shapes._spTree
         for c in list(sp): sp.remove(c)
-        for c in spTree_tmpl: sp.append(copy.deepcopy(c))
-        for reltype, tpart in rels:
+        for c in sep_spTree: sp.append(copy.deepcopy(c))
+        for reltype, tpart in sep_rels:
+            try: sl.part.relate_to(tpart, reltype)
+            except: pass
+        if sep_alt_xml:
+            sl._element.append(etree.fromstring(sep_alt_xml))
+        # 텍스트 완전히 비우기
+        for sh in sl.shapes:
+            if sh.has_text_frame:
+                txBody = sh.text_frame._txBody
+                for p in txBody.findall(qn('a:p')): txBody.remove(p)
+        return sl
+
+    def _add_lyric(with_wipe):
+        """가사 슬라이드 추가"""
+        sl = blank_prs.slides.add_slide(layout_lyric)
+        sp = sl.shapes._spTree
+        for c in list(sp): sp.remove(c)
+        for c in lyric_spTree: sp.append(copy.deepcopy(c))
+        for reltype, tpart in lyric_rels:
             try: sl.part.relate_to(tpart, reltype)
             except: pass
         if with_wipe:
             sl._element.append(etree.fromstring(WIPE))
-        elif is_sep and sep_alt_xml:
-            sl._element.append(etree.fromstring(sep_alt_xml))
-        elif not is_sep and lyric2_alt_xml:
+        elif lyric2_alt_xml:
             sl._element.append(etree.fromstring(lyric2_alt_xml))
         return sl
 
@@ -864,11 +881,11 @@ def _build_praise_src_pptx(template_path: str, songs: list) -> str:
             txBody.append(p_e)
 
     for song in songs:
-        _add(sep_spTree, sep_rels, False, is_sep=True)
+        _add_sep()
         for idx, lines in enumerate(song['slides']):
-            sl = _add(lyric_spTree, lyric_rels, idx == 0, is_sep=False)
+            sl = _add_lyric(idx == 0)
             _set_text(sl, lines, song['title'])
-    _add(sep_spTree, sep_rels, False, is_sep=True)
+    _add_sep()
 
     tmp = tempfile.mktemp(suffix='.pptx')
     blank_prs.save(tmp)
