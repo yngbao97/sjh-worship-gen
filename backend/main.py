@@ -241,6 +241,14 @@ async def generate_ppt(
                     [line.replace('\x00', '\n') for line in slide]
                     for slide in song['slides']
                 ]
+            # 디버그: 템플릿에서 praise region 확인
+            from worship_core import get_praise_region
+            prs_debug = Presentation(out_path)
+            ds, de = get_praise_region(prs_debug)
+            _log(f"[DEBUG] praise region: start={ds}, end={de}")
+            if ds is not None:
+                sep_sl = prs_debug.slides[ds]
+                _log(f"[DEBUG] sep shapes: {[sh.name for sh in sep_sl.shapes]}")
             _log(f"✨ 찬양팀 가사: {len(songs)}곡")
             applied = apply_praise_lyrics(out_path, songs)
             _log(f"   → {applied}슬라이드 입력 완료")
