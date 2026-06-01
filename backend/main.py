@@ -240,14 +240,17 @@ async def generate_ppt(
 
         _log(f"\n✅ {label} 생성 완료!")
 
-        # 파일 반환 (HTTP 헤더는 latin-1만 허용 → 이모지/한글 제거)
-        safe_log = " | ".join(log).encode('ascii', errors='ignore').decode('ascii')
-        return FileResponse(
-            path=out_path,
-            filename=out_filename,
-            media_type='application/vnd.openxmlformats-officedocument.presentationml.presentation',
-            headers={"X-Log": safe_log}
-        )
+        # pptx 파일을 base64로 인코딩해서 JSON으로 반환
+        import base64
+        with open(out_path, 'rb') as f:
+            file_b64 = base64.b64encode(f.read()).decode('utf-8')
+
+        from fastapi.responses import JSONResponse
+        return JSONResponse({
+            "filename": out_filename,
+            "file": file_b64,
+            "log": log
+        })
 
     except HTTPException:
         raise

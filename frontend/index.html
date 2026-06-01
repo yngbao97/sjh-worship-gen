@@ -544,31 +544,26 @@
             body: formData,
           });
 
+          const data = await resp.json();
+
           if (!resp.ok) {
-            const err = await resp.json();
-            setLogs(prev => [...prev, `❌ 오류: ${err.detail || resp.statusText}`]);
+            setLogs(prev => [...prev, `❌ 오류: ${data.detail || resp.statusText}`]);
             setModalStatus('error');
             return;
           }
 
-          // 로그 헤더 파싱
-          const logHeader = resp.headers.get('X-Log');
-          if (logHeader) {
-            setLogs(logHeader.split(' | '));
-          }
+          // 로그 표시
+          if (data.log) setLogs(data.log);
 
-          // 파일 다운로드
-          const blob = await resp.blob();
-          const cd = resp.headers.get('Content-Disposition') || '';
-          const fnMatch = cd.match(/filename\*?=(?:UTF-8'')?([^;]+)/i);
-          const filename = fnMatch
-            ? decodeURIComponent(fnMatch[1].replace(/"/g, ''))
-            : `주일예배(${part === '1bu' ? '1부' : '2부'}).pptx`;
-
+          // base64 → blob → 다운로드
+          const binary = atob(data.file);
+          const bytes = new Uint8Array(binary.length);
+          for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+          const blob = new Blob([bytes], { type: 'application/vnd.openxmlformats-officedocument.presentationml.presentation' });
           const url = URL.createObjectURL(blob);
           const a = document.createElement('a');
           a.href = url;
-          a.download = filename;
+          a.download = data.filename || `주일예배(${part === '1bu' ? '1부' : '2부'}).pptx`;
           a.click();
           URL.revokeObjectURL(url);
 
@@ -620,22 +615,21 @@
 
           const newLogs = [];
           for (const [resp, label] of [[r1, '1부'], [r2, '2부']]) {
+            const data = await resp.json();
             if (!resp.ok) {
-              const err = await resp.json();
-              newLogs.push(`❌ ${label} 오류: ${err.detail || resp.statusText}`);
+              newLogs.push(`❌ ${label} 오류: ${data.detail || resp.statusText}`);
               continue;
             }
-            const logHeader = resp.headers.get('X-Log');
-            if (logHeader) newLogs.push(...logHeader.split(' | ').map(l => `[${label}] ${l}`));
-            const blob = await resp.blob();
-            const cd = resp.headers.get('Content-Disposition') || '';
-            const fnMatch = cd.match(/filename\*?=(?:UTF-8'')?([^;]+)/i);
-            const filename = fnMatch
-              ? decodeURIComponent(fnMatch[1].replace(/"/g, ''))
-              : `주일예배(${label}).pptx`;
+            if (data.log) newLogs.push(...data.log.map(l => `[${label}] ${l}`));
+            const binary = atob(data.file);
+            const bytes = new Uint8Array(binary.length);
+            for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+            const blob = new Blob([bytes], { type: 'application/vnd.openxmlformats-officedocument.presentationml.presentation' });
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
-            a.href = url; a.download = filename; a.click();
+            a.href = url;
+            a.download = data.filename || `주일예배(${label}).pptx`;
+            a.click();
             URL.revokeObjectURL(url);
           }
           setLogs(newLogs);
