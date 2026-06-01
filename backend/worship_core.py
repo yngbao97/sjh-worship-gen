@@ -559,7 +559,7 @@ def _set_textbox_lines(shape, lines: list, anchor: str = None):
 def _split_title(title: str) -> list:
     if '\n' in title:
         parts = [p.strip() for p in title.split('\n') if p.strip()]
-        return parts[:2] if parts else [title]
+        return parts[:3] if parts else [title]  # 최대 3줄
     if len(title) <= 7:
         return [title]
     mid = len(title) // 2
@@ -603,11 +603,11 @@ def parse_praise_input(text: str) -> list:
         current_slides.append(current_lines)
     if current_title or current_slides:
         songs.append({'title': current_title, 'slides': current_slides})
-    # NULL 바이트 제거 (parse 과정에서 줄바꿈 임시 치환한 것 복원)
+    # \x00 → \n 복원 (parse 과정에서 줄바꿈을 임시로 \x00으로 치환했던 것)
     for song in songs:
         song['title'] = song['title'].replace('\x00', '\n')
         song['slides'] = [
-            [line.replace('\x00', '') for line in slide]
+            [line.replace('\x00', '\n') for line in slide]
             for slide in song['slides']
         ]
     return songs
@@ -854,7 +854,7 @@ def _build_praise_src_pptx(template_path: str, songs: list) -> str:
     def _raw(shape, lines, rpr_t, ppr_t):
         txBody = shape.text_frame._txBody
         for p in txBody.findall(qn('a:p')): txBody.remove(p)
-        for line in [l.replace('\x00', '\n').strip() if isinstance(l, str) else l for l in lines]:
+        for line in lines:
             p_e = etree.Element(qn('a:p'))
             if ppr_t is not None: p_e.append(copy.deepcopy(ppr_t))
             r_e = etree.SubElement(p_e, qn('a:r'))
