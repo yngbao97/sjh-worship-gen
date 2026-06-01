@@ -240,12 +240,13 @@ async def generate_ppt(
 
         _log(f"\n✅ {label} 생성 완료!")
 
-        # 파일 반환
+        # 파일 반환 (HTTP 헤더는 latin-1만 허용 → 이모지/한글 제거)
+        safe_log = " | ".join(log).encode('ascii', errors='ignore').decode('ascii')
         return FileResponse(
             path=out_path,
             filename=out_filename,
             media_type='application/vnd.openxmlformats-officedocument.presentationml.presentation',
-            headers={"X-Log": " | ".join(log)}
+            headers={"X-Log": safe_log}
         )
 
     except HTTPException:
