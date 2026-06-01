@@ -1,17 +1,17 @@
 """
 주일예배 PPT 자동 생성 - 핵심 로직 (웹 버전)
-tkinter 의존성 제거, FastAPI 백엔드용
+원본 worship_ppt.py에서 tkinter/GUI 제거, FastAPI 백엔드용
 """
 
-import os, sys, re, shutil, zipfile, tempfile, copy
+import os, sys, json, re, shutil, zipfile, threading, datetime, tempfile, copy
 from pathlib import Path
 from lxml import etree
+from pptx.oxml import parse_xml
 
 from pptx import Presentation
 from pptx.util import Pt
 from pptx.oxml.ns import qn
 from pptx.oxml import parse_xml
-
 # ───────────────────────────────────────────────
 # 네임스페이스 상수
 # ───────────────────────────────────────────────
@@ -20,14 +20,96 @@ NS_R   = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships'
 NS_REL = 'http://schemas.openxmlformats.org/package/2006/relationships'
 NS_CT  = 'http://schemas.openxmlformats.org/package/2006/content-types'
 
-HYMN_RANGES = [(1,100),(101,200),(201,300),(301,400),(401,500),(501,600),(601,645)]
+
+
+# ───────────────────────────────────────────────
+# 파일 탐색 유틸
+# ───────────────────────────────────────────────
+
+def get_hymn_subfolder_name(number: int) -> str:
+    """찬송가 번호 → 서브폴더명. '1~100장' 과 '1~100' 둘 다 시도."""
+    for start, end in HYMN_RANGES:
+        if start <= number <= end:
+            return f"{start}~{end}"
+    return ""
+
+def _find_hymn_subfolder(root_folder: str, number: int) -> str | None:
+    """실제 존재하는 서브폴더를 탐색 (이름 패턴이 달라도 대응)."""
+    from pathlib import Path
+    root = Path(root_folder)
+    if not root.exists():
+        return None
+    candidates = [
+        f"{get_hymn_subfolder_name(number)}장",   # '1~100장'
+        get_hymn_subfolder_name(number),           # '1~100'
+    ]
+    for name in candidates:
+        if name and (root / name).is_dir():
+            return str(root / name)
+    # 위 후보가 없으면 폴더 내 모든 디렉터리를 순회해서 번호 범위 포함 여부 확인
+    for d in root.iterdir():
+        if not d.is_dir(): continue
+        m = __import__('re').search(r'(\d+)\D+(\d+)', d.name)
+        if m:
+            s, e = int(m.group(1)), int(m.group(2))
+            if s <= number <= e:
+                return str(d)
+    return None
+
+def find_hymn_path(root_folder: str, number: str) -> str | None:
+    """찬송가 번호로 PPT 파일 경로 반환. 서브폴더명/파일명 패턴 자동 탐색."""
+    try:
+        num = int(number.strip())
+    except ValueError:
+        return None
+    subfolder = _find_hymn_subfolder(root_folder, num)
+    if not subfolder:
+        return None
+    # 파일명 후보 순서대로 시도
+    for fname in [f"{num}장.pptx", f"{num}.pptx", f"찬송가{num}장.pptx", f"찬송가_{num}장.pptx"]:
+        p = Path(subfolder) / fname
+        if p.exists():
+            return str(p)
+    return None
+
+def find_responsory_path(folder: str, number: str) -> str | None:
+    """교독문 번호로 PPT 파일 경로 반환. 파일명 패턴 자동 탐색."""
+    try:
+        num = int(number.strip())
+    except ValueError:
+        return None
+    folder_path = Path(folder)
+    # 파일명 후보 순서대로 시도
+    for fname in [
+        f"교독문 {num}번.pptx",    # 공백
+        f"교독문_{num}번.pptx",    # 언더바
+        f"교독문{num}번.pptx",     # 붙여쓰기
+        f"교독문 {num:03d}번.pptx", # 공백+3자리
+        f"교독문_{num:03d}번.pptx", # 언더바+3자리
+        f"{num}번.pptx",
+        f"{num:03d}번.pptx",
+    ]:
+        p = folder_path / fname
+        if p.exists():
+            return str(p)
+    # 그래도 없으면 폴더 전체 순회해서 번호 포함 파일 탐색
+    import re as _re
+    for f in folder_path.iterdir():
+        if f.suffix.lower() != '.pptx': continue
+        if _re.search(rf'(?<!\d){num}(?!\d)', f.stem):
+            return str(f)
+    return None
 
 
 # ───────────────────────────────────────────────
 # ZIP 레벨 슬라이드 교체
 # ───────────────────────────────────────────────
 
-def _zip_delete_slides(pptx_path: str, slide_targets: list):
+def _zip_delete_slides(pptx_path: str, slide_targets: list[str]):
+    """ZIP 파일에서 제거된 슬라이드 XML/rels 삭제 + 중복 파일 정리."""
+    import zipfile, tempfile, shutil as _sh
+    from pathlib import Path as _P
+
     del_set = set()
     for t in slide_targets:
         t = t.lstrip('/')
@@ -35,7 +117,7 @@ def _zip_delete_slides(pptx_path: str, slide_targets: list):
         del_set.add('ppt/' + t.replace('slides/', 'slides/_rels/') + '.rels')
 
     with tempfile.TemporaryDirectory() as td:
-        tmp = Path(td) / 'tmp.pptx'
+        tmp = _P(td) / 'tmp.pptx'
         seen = set()
         with zipfile.ZipFile(pptx_path, 'r') as zin, \
              zipfile.ZipFile(str(tmp), 'w', zipfile.ZIP_DEFLATED) as zout:
@@ -45,14 +127,20 @@ def _zip_delete_slides(pptx_path: str, slide_targets: list):
                     continue
                 seen.add(fn)
                 zout.writestr(item, zin.read(fn))
-        shutil.move(str(tmp), pptx_path)
+        _sh.move(str(tmp), pptx_path)
+
 
 
 # ───────────────────────────────────────────────────────────────
 # 설교찬양 (악보 이미지 PPT → 예배 자막 슬라이드 교체)
 # ───────────────────────────────────────────────────────────────
 
-def find_sermon_song_region(prs) -> list:
+def find_sermon_song_region(prs) -> list[int]:
+    """
+    설교찬양 슬라이드 구역 탐지.
+    '직사각형 8' + '그림 1' 패턴인 슬라이드 중 첫 번째 연속 그룹 반환.
+    (주제찬양은 빈 슬라이드 이후 두 번째 그룹)
+    """
     region = []
     prev_idx = -2
     for i in range(len(prs.slides)):
@@ -60,33 +148,46 @@ def find_sermon_song_region(prs) -> list:
         names = [sh.name for sh in sl.shapes]
         if '직사각형 8' in names and '그림 1' in names:
             if region and i > prev_idx + 1:
-                break
+                break   # 연속이 끊기면 첫 번째 그룹 완료
             region.append(i)
             prev_idx = i
     return region
 
 
 def apply_sermon_song(prs, score_pptx_path: str, song_title: str) -> int:
-    import io as _io
+    """
+    설교찬양 악보 PPT의 이미지를 예배 자막에 삽입.
+    - score_pptx_path: 악보 원본 PPT (.ppt/.pptx)
+    - song_title: 설교찬양 제목
+    반환: 생성된 슬라이드 수 (실패 시 -1 또는 0)
+    """
+    import warnings as _w
+    import os as _os
+    import tempfile as _tmp
+    import shutil as _sh
 
+    # .PPT → .pptx 변환 (필요시)
     score_path = score_pptx_path
     tmp_converted = None
-
     if score_pptx_path.lower().endswith('.ppt') and not score_pptx_path.lower().endswith('.pptx'):
-        lo_candidates = ['libreoffice', 'soffice']
+        lo_candidates = [
+            'libreoffice',
+            'C:\\Program Files\\LibreOffice\\program\\soffice.exe',
+            'C:\\Program Files (x86)\\LibreOffice\\program\\soffice.exe',
+        ]
         converted_ok = False
         for lo_cmd in lo_candidates:
             try:
                 import subprocess
-                out_dir = os.path.dirname(score_pptx_path) or tempfile.gettempdir()
+                out_dir = _os.path.dirname(score_pptx_path) or _tmp.gettempdir()
                 subprocess.run(
                     [lo_cmd, '--headless', '--convert-to', 'pptx',
                      score_pptx_path, '--outdir', out_dir],
                     capture_output=True, timeout=60
                 )
-                base = os.path.splitext(os.path.basename(score_pptx_path))[0]
-                converted = os.path.join(out_dir, base + '.pptx')
-                if os.path.exists(converted):
+                base = _os.path.splitext(_os.path.basename(score_pptx_path))[0]
+                converted = _os.path.join(out_dir, base + '.pptx')
+                if _os.path.exists(converted):
                     tmp_converted = converted
                     score_path = tmp_converted
                     converted_ok = True
@@ -94,21 +195,22 @@ def apply_sermon_song(prs, score_pptx_path: str, song_title: str) -> int:
             except Exception:
                 continue
         if not converted_ok:
-            return -1
+            return -1  # 변환 실패
 
     try:
         prs_score = Presentation(score_path)
     except Exception:
         return 0
     finally:
-        if tmp_converted and os.path.exists(tmp_converted):
-            try: os.unlink(tmp_converted)
+        if tmp_converted and _os.path.exists(tmp_converted):
+            try: _os.unlink(tmp_converted)
             except: pass
 
+    # 악보 이미지 blob 목록 추출
     score_images = []
     for sl_s in prs_score.slides:
         for sh in sl_s.shapes:
-            if sh.shape_type == 13:
+            if sh.shape_type == 13:  # PICTURE
                 blip = sh._element.find('.//' + qn('a:blip'))
                 if blip is not None:
                     rId = blip.get(qn('r:embed'))
@@ -119,10 +221,12 @@ def apply_sermon_song(prs, score_pptx_path: str, song_title: str) -> int:
     if not score_images:
         return 0
 
+    # 설교찬양 구역 탐지
     region = find_sermon_song_region(prs)
     if not region:
         return 0
 
+    # 슬라이드 수 부족하면 복제
     sldIdLst = prs.slides._sldIdLst
     while len(region) < len(score_images):
         src_sl = prs.slides[region[-1]]
@@ -145,12 +249,14 @@ def apply_sermon_song(prs, score_pptx_path: str, song_title: str) -> int:
             sldIdLst.append(new_elem)
         region.append(last + 1)
 
+    # 슬라이드 수 초과하면 제거
     if len(score_images) < len(region):
         cur_ids = list(sldIdLst.sldId_lst)
         for elem in cur_ids[region[len(score_images)]: region[-1] + 1]:
             sldIdLst.remove(elem)
         region = region[:len(score_images)]
 
+    # 템플릿 슬라이드에서 그림 1의 위치/크기/srcRect 정보 추출
     tmpl_sl = prs.slides[region[0]]
     img_shape_tmpl = next((sh for sh in tmpl_sl.shapes if sh.name == '그림 1'), None)
     if img_shape_tmpl is None:
@@ -160,21 +266,33 @@ def apply_sermon_song(prs, score_pptx_path: str, song_title: str) -> int:
     img_top    = img_shape_tmpl.top
     img_width  = img_shape_tmpl.width
     img_height = img_shape_tmpl.height
+    # srcRect.t 값
     blipFill_tmpl = img_shape_tmpl._element.find('.//' + qn('p:blipFill'))
     srcRect_tmpl  = blipFill_tmpl.find(qn('a:srcRect')) if blipFill_tmpl is not None else None
     src_t = srcRect_tmpl.get('t', '14180') if srcRect_tmpl is not None else '14180'
 
+    import io as _io
+
+    # 각 슬라이드에 악보 이미지 삽입
     for pos, img_blob in enumerate(score_images):
         sl = prs.slides[region[pos]]
+
+        # 기존 '그림 1' shape 제거하고 새 이미지로 교체
+        # add_picture로 추가 → ImagePart가 독립적으로 생성됨
         old_img_sh = next((sh for sh in sl.shapes if sh.name == '그림 1'), None)
         if old_img_sh is None:
             continue
+
         sp_tree = sl.shapes._spTree
+
+        # 새 이미지 추가 (동일한 위치/크기)
         new_pic = sl.shapes.add_picture(
             _io.BytesIO(img_blob),
             left=img_left, top=img_top,
             width=img_width, height=img_height
         )
+
+        # srcRect.t 설정 (상단 crop)
         blipFill_new = new_pic._element.find('.//' + qn('p:blipFill'))
         if blipFill_new is not None:
             srcRect_new = etree.Element(qn('a:srcRect'))
@@ -184,10 +302,14 @@ def apply_sermon_song(prs, score_pptx_path: str, song_title: str) -> int:
                 stretch.addprevious(srcRect_new)
             else:
                 blipFill_new.append(srcRect_new)
+
+        # 기존 shape 제거, 새 shape 이름 변경
         sp_tree.remove(old_img_sh._element)
         cNvPr = new_pic._element.find('.//' + qn('p:cNvPr'))
         if cNvPr is not None:
             cNvPr.set('name', '그림 1')
+
+        # 제목 텍스트 교체 (앞 공백 유지)
         for sh in sl.shapes:
             if sh.name == '직사각형 8' and sh.has_text_frame:
                 para = sh.text_frame.paragraphs[0]
@@ -201,6 +323,7 @@ def apply_sermon_song(prs, score_pptx_path: str, song_title: str) -> int:
                 break
 
     return len(score_images)
+
 
 
 # ───────────────────────────────────────────────
@@ -224,7 +347,8 @@ def get_slide_role(slide) -> str:
     return "other"
 
 
-def find_hymn_blocks(prs) -> list:
+def find_hymn_blocks(prs) -> list[tuple[int,int]]:
+    """찬송가 블록 (앞blank+가사N장+뒤blank) 위치 목록 반환 [(start_idx, count), ...]"""
     roles = [get_slide_role(prs.slides[i]) for i in range(len(prs.slides))]
     results = []
     i = 0
@@ -243,28 +367,86 @@ def find_hymn_blocks(prs) -> list:
     return results
 
 
-def find_responsory_block(prs):
+def find_responsory_block(prs) -> tuple[int,int] | None:
+    """
+    교독문 전체 블록 (앞blank+제목+본문N장+뒤blank) 위치 반환 (start_idx, count).
+    교독문 본문 슬라이드는 role=other로 분류되므로
+    responsory 이후 creed/hymn 직전 blank까지 포함.
+    """
     roles = [get_slide_role(prs.slides[i]) for i in range(len(prs.slides))]
     try:
         resp_idx = next(i for i, r in enumerate(roles) if r == "responsory")
     except StopIteration:
         return None
+    # 앞 blank 포함
     start = resp_idx - 1 if resp_idx > 0 and roles[resp_idx-1] == "blank" else resp_idx
+    # 뒤: creed/hymn 나오기 직전까지, 첫 blank에서 멈춤
     end = resp_idx
     while end + 1 < len(roles):
-        if roles[end+1] in ("creed", "hymn"):
+        next_role = roles[end + 1]
+        if next_role in ("creed", "hymn"):
             break
         end += 1
-    if end + 1 < len(roles) and roles[end+1] in ("creed", "hymn"):
-        if roles[end] == "blank":
-            pass
-        else:
-            if end + 1 < len(roles) and roles[end+1] == "blank":
-                end += 1
+        if next_role == "blank":
+            break
     return (start, end - start + 1)
 
 
+# ───────────────────────────────────────────────
+# 텍스트 치환 유틸
+# ───────────────────────────────────────────────
+
+def _replace_date_in_prs(prs, date_str: str):
+    """
+    전체 슬라이드에서 날짜 치환.
+    날짜가 run 여러 개로 쪼개진 경우도 처리:
+    예) run[0]='2026' run[1]='년 ' run[2]='1' run[3]='월 ' run[4]='4' run[5]='일'
+    → paragraph 전체 텍스트를 합쳐서 날짜 패턴 탐지 후 첫 run에 전체 날짜 삽입,
+      나머지 날짜 관련 run은 비움.
+    """
+    DATE_PAT = re.compile(r'\d{4}년\s*\d{1,2}월\s*\d{1,2}일')
+    for i in range(len(prs.slides)):
+        sl = prs.slides[i]
+        for shape in sl.shapes:
+            if not shape.has_text_frame:
+                continue
+            for para in shape.text_frame.paragraphs:
+                runs = para.runs
+                if not runs:
+                    continue
+                # 단일 run에 날짜 전체가 있는 경우
+                for run in runs:
+                    if DATE_PAT.search(run.text):
+                        run.text = DATE_PAT.sub(date_str, run.text)
+                        break
+                else:
+                    # run이 쪼개진 경우: para 전체 텍스트 합쳐서 확인
+                    full = ''.join(r.text for r in runs)
+                    if not DATE_PAT.search(full):
+                        continue
+                    # 날짜 패턴에 해당하는 run 범위 찾기
+                    # 연도 숫자로 시작하는 run 탐색
+                    year_pat = re.compile(r'^\d{4}$')
+                    start_idx = next(
+                        (k for k, r in enumerate(runs) if year_pat.match(r.text.strip())),
+                        None
+                    )
+                    if start_idx is None:
+                        continue
+                    # '일' 로 끝나는 run까지 범위 탐색
+                    end_idx = start_idx
+                    for k in range(start_idx, min(start_idx + 8, len(runs))):
+                        if '일' in runs[k].text:
+                            end_idx = k
+                            break
+                    # 첫 run에 전체 날짜 삽입, 나머지 비움
+                    runs[start_idx].text = date_str
+                    for k in range(start_idx + 1, end_idx + 1):
+                        runs[k].text = ''
+
+
 def replace_text_all(prs, old: str, new: str):
+    """전체 슬라이드에서 텍스트 치환"""
     for i in range(len(prs.slides)):
         slide = prs.slides[i]
         for shape in slide.shapes:
@@ -276,19 +458,12 @@ def replace_text_all(prs, old: str, new: str):
                         run.text = run.text.replace(old, new)
 
 
-def _replace_date_in_prs(prs, date_str: str):
-    import re as _re
-    DATE_PAT = _re.compile(r'\d{4}년\s*\d{1,2}월\s*\d{1,2}일')
-    for sl in prs.slides:
-        for sh in sl.shapes:
-            if not sh.has_text_frame: continue
-            for para in sh.text_frame.paragraphs:
-                for run in para.runs:
-                    if DATE_PAT.search(run.text):
-                        run.text = DATE_PAT.sub(date_str, run.text)
-
 
 def _is_sermon_title_shape(tf) -> bool:
+    """
+    설교 제목 shape 판별.
+    조건: ( ) 포함 + 최대 폰트가 42~50pt 범위 (교독문=60pt, 축도=72pt 제외)
+    """
     for para in tf.paragraphs:
         runs = para.runs
         if len(runs) < 3:
@@ -303,6 +478,7 @@ def _is_sermon_title_shape(tf) -> bool:
         if not sizes:
             continue
         max_sz = max(sizes)
+        # 설교제목: 최대 폰트 42~52pt, 두 가지 크기 존재
         if 42 <= max_sz <= 52 and len(set(sizes)) >= 2:
             return True
     return False
@@ -359,14 +535,34 @@ def replace_sermon_title(prs, sermon_title: str, sermon_ref: str) -> bool:
             return True
     return False
 
+def split_into_blocks(text: str) -> list[list[str]]:
+    """빈 줄로 구분된 텍스트를 슬라이드 블록 목록으로 변환"""
+    blocks = []
+    current = []
+    for line in text.splitlines():
+        if line.strip():
+            current.append(line.strip())
+        else:
+            if current:
+                blocks.append(current)
+                current = []
+    if current:
+        blocks.append(current)
+    return blocks
 
 # ───────────────────────────────────────────────
-# ZIP 슬라이드 교체
+# ZIP 슬라이드 교체 (찬송가/교독문 블록 단위 교체)
 # ───────────────────────────────────────────────
 
 def replace_slides_zip(dst_path: str, start_idx: int, remove_count: int,
                        src_path: str, out_path: str) -> int:
-    import re as _re
+    """
+    dst_path의 start_idx ~ start_idx+remove_count-1 슬라이드를
+    src_path 전체 슬라이드로 교체 후 out_path에 저장.
+    반환: 새로 삽입된 슬라이드 수
+    """
+    import zipfile, re as _re, tempfile, shutil
+    from pathlib import Path
 
     with tempfile.TemporaryDirectory() as tmpdir:
         dst_dir = Path(tmpdir) / 'dst'
@@ -409,6 +605,7 @@ def replace_slides_zip(dst_path: str, start_idx: int, remove_count: int,
         dst_media_dir.mkdir(exist_ok=True)
         existing_media = {f.name for f in dst_media_dir.iterdir()}
 
+        # 제거 대상 파일명 수집
         rid_to_target = {e.get('Id'): e.get('Target', '')
                          for e in dst_rels_root.findall(f'{{{NS_REL}}}Relationship')}
         files_to_remove = []
@@ -462,6 +659,7 @@ def replace_slides_zip(dst_path: str, start_idx: int, remove_count: int,
             next_rid += 1
             next_sid += 1
 
+        # 기존 슬라이드 제거 후 새 슬라이드 삽입
         all_ids = list(sldIdLst)
         for elem in all_ids[start_idx: start_idx + remove_count]:
             sldIdLst.remove(elem)
@@ -474,6 +672,7 @@ def replace_slides_zip(dst_path: str, start_idx: int, remove_count: int,
             for ne in new_sldId_elems:
                 sldIdLst.append(ne)
 
+        # 제거된 슬라이드 파일 삭제
         for fname in files_to_remove:
             for p in [dst_slides_dir / fname,
                       dst_slides_dir / '_rels' / (fname + '.rels')]:
@@ -499,6 +698,10 @@ def replace_slides_zip(dst_path: str, start_idx: int, remove_count: int,
 # ───────────────────────────────────────────────
 
 def _set_choir_cover_text(shape, choir_name: str, song_title: str):
+    """
+    성가대 표지 shape 텍스트 교체.
+    para[0]: 성가대 이름, para[1]: 빈 줄, para[2]: 곡 제목
+    """
     tf = shape.text_frame
     paras = tf.paragraphs
     if len(paras) < 3:
@@ -522,7 +725,10 @@ def _set_choir_cover_text(shape, choir_name: str, song_title: str):
         t_elem.text = song_title
 
 
-def _set_textbox_lines(shape, lines: list, anchor: str = None):
+def _set_textbox_lines(shape, lines: list[str], anchor: str = None):
+    """TextBox의 텍스트를 줄 목록으로 교체 (기존 서식 유지).
+    anchor: 't'=상단, 'ctr'=가운데, None=변경 없음
+    """
     tf = shape.text_frame
     txBody = tf._txBody
     existing_paras = txBody.findall(qn('a:p'))
@@ -556,10 +762,11 @@ def _set_textbox_lines(shape, lines: list, anchor: str = None):
             bodyPr.set('anchor', anchor)
 
 
-def _split_title(title: str) -> list:
+def _split_title(title: str) -> list[str]:
+    """찬양 제목이 길면 두 줄로 분할. [] 안에 줄바꿈이 있으면 그대로 사용."""
     if '\n' in title:
         parts = [p.strip() for p in title.split('\n') if p.strip()]
-        return parts[:3] if parts else [title]  # 최대 3줄
+        return parts[:2] if parts else [title]
     if len(title) <= 7:
         return [title]
     mid = len(title) // 2
@@ -571,7 +778,12 @@ def _split_title(title: str) -> list:
 # 파싱 함수
 # ───────────────────────────────────────────────
 
-def parse_praise_input(text: str) -> list:
+def parse_praise_input(text: str) -> list[dict]:
+    """
+    [제목] 구분으로 찬양팀 가사 파싱.
+    [] 안에 줄바꿈이 있어도 제목으로 인식하며 줄바꿈 유지.
+    반환: [{'title': str, 'slides': [['줄1','줄2'], ...]}, ...]
+    """
     import re as _re
     NL = '\x00'
     def _fix_bracket(m):
@@ -603,17 +815,15 @@ def parse_praise_input(text: str) -> list:
         current_slides.append(current_lines)
     if current_title or current_slides:
         songs.append({'title': current_title, 'slides': current_slides})
-    # \x00 → \n 복원 (parse 과정에서 줄바꿈을 임시로 \x00으로 치환했던 것)
-    for song in songs:
-        song['title'] = song['title'].replace('\x00', '\n')
-        song['slides'] = [
-            [line.replace('\x00', '\n') for line in slide]
-            for slide in song['slides']
-        ]
     return songs
 
 
 def parse_choir_input(text: str) -> list:
+    """
+    빈 줄로 슬라이드 구분하여 성가대 가사 파싱.
+    (간주) 등 괄호 단어는 빈 슬라이드 마커로 처리.
+    반환: list of (list[str] | 'interlude')
+    """
     import re as _re
     INTERLUDE_PAT = _re.compile(r'^\(간주\)$')
     blocks = []
@@ -636,7 +846,14 @@ def parse_choir_input(text: str) -> list:
     return blocks
 
 
-def parse_godpia_text(text: str, book_ref: str) -> list:
+def parse_godpia_text(text: str, book_ref: str) -> list[dict]:
+    """
+    Godpia 복사 텍스트 파싱.
+    형식: '1본문내용\n2본문내용...'
+    book_ref: '룻기 3' 형태 (책이름+장)
+    반환: [{'label': '룻기 3:1', 'lines': ['전체구절텍스트']}, ...]
+    줄 분리 없이 전체를 한 줄로 넘김 — PPT 텍스트박스 폭에 맞게 자동 줄바꿈됨
+    """
     import re as _re
     results = []
     parts = _re.split(r'(?m)^(\d+)(?=[가-힣])', text.strip())
@@ -654,7 +871,8 @@ def parse_godpia_text(text: str, book_ref: str) -> list:
 # 구역 탐지
 # ───────────────────────────────────────────────
 
-def get_bible_region(prs):
+def get_bible_region(prs) -> tuple[int, int] | tuple[None, None]:
+    """성경봉독 구역 (직사각형 3 + 직사각형 4) 슬라이드 범위 반환."""
     import re as _re
     REF_PAT = _re.compile(r'[가-힣]+\s*\d+:\d+')
     for i, sl in enumerate(prs.slides):
@@ -675,7 +893,12 @@ def get_bible_region(prs):
     return None, None
 
 
-def apply_bible_text(prs, verses: list) -> int:
+def apply_bible_text(prs, verses: list[dict]) -> int:
+    """
+    성경봉독 슬라이드에 구절 적용.
+    verses: [{'label': '룻기 3:1', 'lines': ['줄1', '줄2']}, ...]
+    반환: 적용된 슬라이드 수
+    """
     start, end = get_bible_region(prs)
     if start is None or not verses:
         return 0
@@ -684,6 +907,7 @@ def apply_bible_text(prs, verses: list) -> int:
     needed = len(verses)
     sldIdLst = prs.slides._sldIdLst
 
+    # 슬라이드 수 조정
     while len(region) < needed:
         last = region[-1]
         src_sl = prs.slides[last]
@@ -721,7 +945,7 @@ def apply_bible_text(prs, verses: list) -> int:
             if not sh.has_text_frame:
                 continue
             if sh.name == '직사각형 3':
-                _set_textbox_lines(sh, lines)
+                _set_textbox_lines(sh, lines)  # 줄바꿈은 PPT 텍스트박스에 맡김
             elif sh.name == '직사각형 4':
                 _set_textbox_lines(sh, [label])
 
@@ -732,11 +956,13 @@ def apply_bible_text(prs, verses: list) -> int:
 # 찬양팀 (2부)
 # ───────────────────────────────────────────────
 
-def get_praise_region(prs):
+def get_praise_region(prs) -> tuple[int, int] | tuple[None, None]:
+    """찬양팀 구역 (자유형: 도형 14) 슬라이드 범위 반환."""
     for i, sl in enumerate(prs.slides):
         if any(sh.name == '자유형: 도형 14' for sh in sl.shapes):
             start = i
             end = i
+            # 그룹4(구분자) 슬라이드까지 포함한 연속 구역
             while end + 1 < len(prs.slides):
                 next_sl = prs.slides[end + 1]
                 next_names = [sh.name for sh in next_sl.shapes]
@@ -744,6 +970,7 @@ def get_praise_region(prs):
                     end += 1
                 else:
                     break
+            # 앞 구분자(그룹4) 포함
             if start > 0:
                 prev_names = [sh.name for sh in prs.slides[start-1].shapes]
                 if '그룹 4' in prev_names:
@@ -752,7 +979,13 @@ def get_praise_region(prs):
     return None, None
 
 
-def _build_praise_src_pptx(template_path: str, songs: list) -> str:
+def _build_praise_src_pptx(template_path: str, songs: list[dict]) -> str:
+    """
+    찬양팀 가사를 담은 임시 pptx 생성 후 경로 반환.
+    replace_slides_zip의 src 파일로 사용.
+    """
+    import tempfile as _tmp, shutil as _sh2, os as _os2
+
     NS_P_local = 'http://schemas.openxmlformats.org/presentationml/2006/main'
     WIPE = (f'<p:transition xmlns:p="{NS_P_local}" spd="slow">'
             '<p:wipe dir="r"/></p:transition>')
@@ -795,13 +1028,15 @@ def _build_praise_src_pptx(template_path: str, songs: list) -> str:
     rpr14, ppr14 = _get_fmt(lyric_spTree, '자유형: 도형 14')
     rpr6,  ppr6  = _get_fmt(lyric_spTree, '자유형: 도형 6')
 
+    # 원본 슬라이드 레이아웃 인덱스
     sep_layout_idx   = next((i for i, l in enumerate(prs.slide_layouts)
                               if l == sep_slide.slide_layout), 0)
     lyric_layout_idx = next((i for i, l in enumerate(prs.slide_layouts)
                               if l == lyric_slide.slide_layout), 6)
 
-    blank_path = tempfile.mktemp(suffix='.pptx')
-    shutil.copy2(template_path, blank_path)
+    # 임시 pptx — 원본 파일 복사해서 슬라이드 비우기
+    blank_path = _tmp.mktemp(suffix='.pptx')
+    _sh2.copy2(template_path, blank_path)
     blank_prs = Presentation(blank_path)
     sldIdLst_b = blank_prs.slides._sldIdLst
     for elem in list(sldIdLst_b.sldId_lst):
@@ -809,6 +1044,7 @@ def _build_praise_src_pptx(template_path: str, songs: list) -> str:
     layout_sep   = blank_prs.slide_layouts[sep_layout_idx]   if sep_layout_idx < len(blank_prs.slide_layouts) else blank_prs.slide_layouts[0]
     layout_lyric = blank_prs.slide_layouts[lyric_layout_idx] if lyric_layout_idx < len(blank_prs.slide_layouts) else blank_prs.slide_layouts[0]
 
+    # 원본 전환효과 XML 추출
     _mc_ns = 'http://schemas.openxmlformats.org/markup-compatibility/2006'
     _sep_alt   = sep_slide._element.find(f'{{{_mc_ns}}}AlternateContent')
     sep_alt_xml = etree.tostring(_sep_alt).decode() if _sep_alt is not None else None
@@ -821,40 +1057,24 @@ def _build_praise_src_pptx(template_path: str, songs: list) -> str:
                    if _lyric2_idx is not None else None)
     lyric2_alt_xml = etree.tostring(_lyric2_alt).decode() if _lyric2_alt is not None else None
 
-    def _add_sep():
-        """구분 슬라이드 추가 - 텍스트 완전히 비운 빈 슬라이드"""
-        sl = blank_prs.slides.add_slide(layout_sep)
+    def _add(spTree_tmpl, rels, with_wipe, is_sep=False):
+        sl = blank_prs.slides.add_slide(layout_sep if is_sep else layout_lyric)
         sp = sl.shapes._spTree
         for c in list(sp): sp.remove(c)
-        for c in sep_spTree: sp.append(copy.deepcopy(c))
-        for reltype, tpart in sep_rels:
-            try: sl.part.relate_to(tpart, reltype)
-            except: pass
-        if sep_alt_xml:
-            sl._element.append(etree.fromstring(sep_alt_xml))
-        # 텍스트 완전히 비우기
-        for sh in sl.shapes:
-            if sh.has_text_frame:
-                txBody = sh.text_frame._txBody
-                for p in txBody.findall(qn('a:p')): txBody.remove(p)
-        return sl
-
-    def _add_lyric(with_wipe):
-        """가사 슬라이드 추가"""
-        sl = blank_prs.slides.add_slide(layout_lyric)
-        sp = sl.shapes._spTree
-        for c in list(sp): sp.remove(c)
-        for c in lyric_spTree: sp.append(copy.deepcopy(c))
-        for reltype, tpart in lyric_rels:
+        for c in spTree_tmpl: sp.append(copy.deepcopy(c))
+        for reltype, tpart in rels:
             try: sl.part.relate_to(tpart, reltype)
             except: pass
         if with_wipe:
             sl._element.append(etree.fromstring(WIPE))
-        elif lyric2_alt_xml:
+        elif is_sep and sep_alt_xml:
+            sl._element.append(etree.fromstring(sep_alt_xml))
+        elif not is_sep and lyric2_alt_xml:
             sl._element.append(etree.fromstring(lyric2_alt_xml))
         return sl
 
     def _set_anchor(shape, anchor):
+        """텍스트박스 세로 정렬 설정 (t=상단, ctr=가운데, b=하단)."""
         bodyPr = shape.text_frame._txBody.find(qn('a:bodyPr'))
         if bodyPr is not None:
             bodyPr.set('anchor', anchor)
@@ -863,6 +1083,7 @@ def _build_praise_src_pptx(template_path: str, songs: list) -> str:
         for sh in sl.shapes:
             if not sh.has_text_frame: continue
             if sh.name == '자유형: 도형 14':
+                # 1줄이면 빈줄 추가해서 항상 2줄 유지 (가사 위쪽 정렬 효과)
                 padded = lines[:2] if len(lines) >= 2 else [lines[0], ''] if lines else ['', '']
                 _raw(sh, padded, rpr14, ppr14)
             elif sh.name == '자유형: 도형 6':
@@ -881,22 +1102,28 @@ def _build_praise_src_pptx(template_path: str, songs: list) -> str:
             txBody.append(p_e)
 
     for song in songs:
-        _add_sep()
+        _add(sep_spTree, sep_rels, False, is_sep=True)
         for idx, lines in enumerate(song['slides']):
-            sl = _add_lyric(idx == 0)
+            sl = _add(lyric_spTree, lyric_rels, idx == 0, is_sep=False)
             _set_text(sl, lines, song['title'])
-    _add_sep()
+    _add(sep_spTree, sep_rels, False, is_sep=True)
 
-    tmp = tempfile.mktemp(suffix='.pptx')
+    tmp = _tmp.mktemp(suffix='.pptx')
     blank_prs.save(tmp)
-    try: os.unlink(blank_path)
+    try: _os2.unlink(blank_path)
     except: pass
+    # save() 시 원본 슬라이드와 새 슬라이드가 중복 저장됨 → 중복 제거
     _zip_delete_slides(tmp, [])
     return tmp
 
 
-def apply_praise_lyrics(out_path: str, songs: list) -> int:
-    import warnings as _w
+def apply_praise_lyrics(out_path: str, songs: list[dict]) -> int:
+    """
+    2부 찬양팀 가사 적용. replace_slides_zip 방식으로 교체.
+    out_path: 저장할 파일 경로 (in-place 수정)
+    반환: 생성된 가사 슬라이드 수
+    """
+    import warnings as _w, os as _os
 
     prs_check = Presentation(out_path)
     start, end = get_praise_region(prs_check)
@@ -912,7 +1139,7 @@ def apply_praise_lyrics(out_path: str, songs: list) -> int:
             _w.simplefilter("ignore")
             replace_slides_zip(out_path, start, end - start + 1, src_path, out_path)
     finally:
-        try: os.unlink(src_path)
+        try: _os.unlink(src_path)
         except: pass
 
     return sum(len(s['slides']) for s in songs)
@@ -922,18 +1149,22 @@ def apply_praise_lyrics(out_path: str, songs: list) -> int:
 # 성가대
 # ───────────────────────────────────────────────
 
-def get_choir_region(prs):
+def get_choir_region(prs) -> tuple[int, int] | tuple[None, None]:
+    """성가대 가사 구역 (TextBox 1 + 그룹 5) 슬라이드 범위 반환.
+    뒤쪽 구분자(그룹 5만 있는 빈 슬라이드)는 구역에서 제외."""
     for i, sl in enumerate(prs.slides):
         names = [sh.name for sh in sl.shapes]
         if 'TextBox 1' in names and '그룹 5' in names:
             start = i
             end = i
+            # TextBox 1이 있거나 그룹5만 있는 슬라이드까지 포함
             while end + 1 < len(prs.slides):
                 next_names = [sh.name for sh in prs.slides[end+1].shapes]
                 if '그룹 5' in next_names:
                     end += 1
                 else:
                     break
+            # 뒤쪽 그룹5만 있는 슬라이드(구분자) 제외
             while end > start:
                 last_names = [sh.name for sh in prs.slides[end].shapes]
                 if last_names == ['그룹 5']:
@@ -944,11 +1175,18 @@ def get_choir_region(prs):
     return None, None
 
 
-def apply_choir_lyrics(prs, blocks: list, choir_name: str, song_title: str) -> int:
+def apply_choir_lyrics(prs, blocks: list[list[str]],
+                        choir_name: str, song_title: str) -> int:
+    """
+    성가대 가사를 슬라이드에 적용.
+    - blocks: 슬라이드별 가사 줄 목록. 'interlude'면 간주 빈 슬라이드.
+    반환: 실제 적용된 슬라이드 수
+    """
     start, end = get_choir_region(prs)
     if start is None:
         return 0
 
+    # 성가대 표지 수정
     for cover_i in range(max(0, start - 3), start):
         sl = prs.slides[cover_i]
         for shape in sl.shapes:
@@ -1023,6 +1261,7 @@ def apply_choir_lyrics(prs, blocks: list, choir_name: str, song_title: str) -> i
             for sh in list(sl.shapes):
                 if sh.name == 'TextBox 1':
                     spTree.remove(sh._element)
+            # 간주 빈 슬라이드에도 fade 전환효과 추가
             _add_fade(sl._element)
             need_fade = True
             continue
@@ -1046,3 +1285,6 @@ def apply_choir_lyrics(prs, blocks: list, choir_name: str, song_title: str) -> i
             sldIdLst.remove(elem)
 
     return applied
+
+
+
