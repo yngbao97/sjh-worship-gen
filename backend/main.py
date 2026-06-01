@@ -10,7 +10,8 @@ from pathlib import Path
 
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, HTMLResponse
+from fastapi.staticfiles import StaticFiles
 from pptx import Presentation
 
 from worship_core import (
@@ -30,6 +31,16 @@ from worship_core import (
 from drive_client import download_hymn, download_responsory, download_template
 
 app = FastAPI(title="주일예배 PPT 생성기")
+
+# 프론트엔드 정적 파일 서빙
+_static_dir = os.path.join(os.path.dirname(__file__), 'static')
+if os.path.exists(_static_dir):
+    app.mount('/static', StaticFiles(directory=_static_dir), name='static')
+
+@app.get('/', response_class=HTMLResponse)
+def root():
+    idx = os.path.join(_static_dir, 'index.html')
+    return open(idx, encoding='utf-8').read()
 
 app.add_middleware(
     CORSMiddleware,
