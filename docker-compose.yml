@@ -1,0 +1,13 @@
+version: '3.8'
+
+services:
+  worship-ppt:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      # Google Drive 서비스 계정 JSON 전체 내용 (한 줄로)
+      - GOOGLE_SERVICE_ACCOUNT_JSON=${GOOGLE_SERVICE_ACCOUNT_JSON}
+      # 서울산정현교회 자막 파일 폴더 ID
+      - DRIVE_ROOT_FOLDER_ID=1QQiCwz9TQiz90haWQlaojHfSAknSsbJc
+    restart: unless-stopped

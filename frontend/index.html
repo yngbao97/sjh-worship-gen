@@ -1,0 +1,858 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>주일예배 PPT 생성기 ✝</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+KR:wght@400;700&family=Noto+Sans+KR:wght@300;400;500;700&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #f7f5f0;
+      --surface: #ffffff;
+      --border: #e2ddd5;
+      --border-focus: #7c6a54;
+      --text: #2c2416;
+      --text-muted: #8a7d6b;
+      --accent: #5a3e28;
+      --accent-light: #f0ebe3;
+      --blue: #2d5a8e;
+      --blue-light: #e8f0f9;
+      --orange: #b85c1a;
+      --orange-light: #fdf0e8;
+      --green: #2d6b3f;
+      --green-light: #e8f5ec;
+      --purple: #5a3570;
+      --purple-light: #f3eef7;
+      --shadow: 0 2px 12px rgba(44,36,22,0.08);
+      --shadow-lg: 0 8px 32px rgba(44,36,22,0.12);
+      --radius: 10px;
+    }
+
+    body {
+      font-family: 'Noto Sans KR', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+    }
+
+    header {
+      background: var(--accent);
+      color: white;
+      padding: 18px 32px;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      box-shadow: 0 2px 16px rgba(90,62,40,0.25);
+    }
+
+    header h1 {
+      font-family: 'Noto Serif KR', serif;
+      font-size: 1.25rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+    }
+
+    header .subtitle {
+      font-size: 0.78rem;
+      opacity: 0.7;
+      margin-top: 2px;
+    }
+
+    .cross-icon {
+      font-size: 1.6rem;
+      opacity: 0.9;
+    }
+
+    main {
+      max-width: 780px;
+      margin: 0 auto;
+      padding: 32px 20px 80px;
+    }
+
+    .section {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 24px;
+      margin-bottom: 20px;
+      box-shadow: var(--shadow);
+    }
+
+    .section-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 20px;
+      padding-bottom: 12px;
+      border-bottom: 2px solid var(--border);
+    }
+
+    .section-title {
+      font-family: 'Noto Serif KR', serif;
+      font-size: 1rem;
+      font-weight: 700;
+      color: var(--text);
+    }
+
+    .section-badge {
+      font-size: 0.72rem;
+      padding: 3px 9px;
+      border-radius: 20px;
+      font-weight: 500;
+    }
+
+    .badge-common { background: var(--blue-light); color: var(--blue); }
+    .badge-2bu    { background: var(--orange-light); color: var(--orange); }
+    .badge-1bu    { background: var(--blue-light); color: var(--blue); }
+    .badge-sermon { background: var(--purple-light); color: var(--purple); }
+
+    .field-row {
+      display: grid;
+      grid-template-columns: 130px 1fr;
+      align-items: start;
+      gap: 10px 16px;
+      margin-bottom: 14px;
+    }
+
+    .field-row:last-child { margin-bottom: 0; }
+
+    label {
+      font-size: 0.875rem;
+      font-weight: 500;
+      color: var(--text);
+      padding-top: 9px;
+      line-height: 1.4;
+    }
+
+    .hint {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      margin-top: 4px;
+    }
+
+    input[type="text"],
+    input[type="number"],
+    textarea {
+      width: 100%;
+      padding: 8px 12px;
+      border: 1.5px solid var(--border);
+      border-radius: 6px;
+      font-size: 0.9rem;
+      font-family: 'Noto Sans KR', sans-serif;
+      color: var(--text);
+      background: var(--surface);
+      transition: border-color 0.15s;
+      outline: none;
+    }
+
+    input[type="text"]:focus,
+    input[type="number"]:focus,
+    textarea:focus {
+      border-color: var(--border-focus);
+      box-shadow: 0 0 0 3px rgba(124,106,84,0.12);
+    }
+
+    textarea {
+      resize: vertical;
+      min-height: 90px;
+      line-height: 1.6;
+    }
+
+    .input-group {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .input-short {
+      width: 80px !important;
+    }
+
+    .unit-label {
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      white-space: nowrap;
+    }
+
+    .choir-row {
+      display: flex;
+      gap: 16px;
+      align-items: center;
+    }
+
+    .choir-row .choir-item {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .choir-row .choir-item label {
+      padding-top: 0;
+      font-size: 0.85rem;
+      white-space: nowrap;
+    }
+
+    .choir-row input {
+      width: 130px !important;
+    }
+
+    /* 파일 업로드 */
+    .file-upload-area {
+      border: 2px dashed var(--border);
+      border-radius: 8px;
+      padding: 16px;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.2s;
+      position: relative;
+    }
+
+    .file-upload-area:hover,
+    .file-upload-area.drag-over {
+      border-color: var(--accent);
+      background: var(--accent-light);
+    }
+
+    .file-upload-area input[type="file"] {
+      position: absolute;
+      inset: 0;
+      opacity: 0;
+      cursor: pointer;
+      width: 100%;
+      height: 100%;
+    }
+
+    .file-upload-text {
+      font-size: 0.85rem;
+      color: var(--text-muted);
+    }
+
+    .file-name {
+      font-size: 0.85rem;
+      color: var(--accent);
+      font-weight: 500;
+      margin-top: 4px;
+    }
+
+    /* 설정 섹션 (접기/펼치기) */
+    .settings-toggle {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      cursor: pointer;
+      background: none;
+      border: none;
+      font-family: inherit;
+      color: var(--text-muted);
+      font-size: 0.85rem;
+      padding: 12px 0;
+      width: 100%;
+      text-align: left;
+    }
+
+    .settings-toggle:hover { color: var(--text); }
+
+    .settings-toggle .arrow {
+      transition: transform 0.2s;
+      font-size: 0.7rem;
+    }
+
+    .settings-toggle.open .arrow { transform: rotate(90deg); }
+
+    .settings-content {
+      border-top: 1px solid var(--border);
+      padding-top: 16px;
+      margin-top: 4px;
+    }
+
+    /* 하단 생성 버튼 영역 */
+    .bottom-bar {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      background: var(--surface);
+      border-top: 1px solid var(--border);
+      padding: 14px 20px;
+      display: flex;
+      gap: 12px;
+      justify-content: center;
+      box-shadow: 0 -4px 20px rgba(44,36,22,0.08);
+      z-index: 100;
+    }
+
+    .btn {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      padding: 10px 24px;
+      border-radius: 8px;
+      border: none;
+      font-family: 'Noto Sans KR', sans-serif;
+      font-size: 0.9rem;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+
+    .btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    .btn-1bu {
+      background: var(--blue);
+      color: white;
+    }
+    .btn-1bu:hover:not(:disabled) { background: #24497a; }
+
+    .btn-2bu {
+      background: var(--orange);
+      color: white;
+    }
+    .btn-2bu:hover:not(:disabled) { background: #9a4c14; }
+
+    .btn-both {
+      background: var(--accent);
+      color: white;
+    }
+    .btn-both:hover:not(:disabled) { background: #4a3220; }
+
+    /* 진행 상태 */
+    .status-modal {
+      position: fixed;
+      inset: 0;
+      background: rgba(44,36,22,0.5);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 200;
+    }
+
+    .status-card {
+      background: var(--surface);
+      border-radius: var(--radius);
+      padding: 32px 40px;
+      min-width: 360px;
+      max-width: 500px;
+      box-shadow: var(--shadow-lg);
+      text-align: center;
+    }
+
+    .status-card h3 {
+      font-family: 'Noto Serif KR', serif;
+      font-size: 1.1rem;
+      margin-bottom: 16px;
+      color: var(--text);
+    }
+
+    .spinner {
+      width: 40px;
+      height: 40px;
+      border: 3px solid var(--border);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      margin: 0 auto 16px;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .log-area {
+      background: var(--bg);
+      border-radius: 6px;
+      padding: 12px;
+      margin-top: 16px;
+      text-align: left;
+      font-size: 0.8rem;
+      line-height: 1.8;
+      color: var(--text-muted);
+      max-height: 200px;
+      overflow-y: auto;
+    }
+
+    .status-success { color: var(--green); font-weight: 600; }
+    .status-error   { color: #c0392b; font-weight: 600; }
+
+    .btn-close {
+      margin-top: 20px;
+      padding: 9px 28px;
+      background: var(--accent);
+      color: white;
+      border: none;
+      border-radius: 7px;
+      font-family: 'Noto Sans KR', sans-serif;
+      font-size: 0.9rem;
+      cursor: pointer;
+    }
+
+    .btn-close:hover { background: #4a3220; }
+
+    /* 반응형 */
+    @media (max-width: 560px) {
+      .field-row { grid-template-columns: 1fr; }
+      label { padding-top: 0; }
+      .bottom-bar { flex-wrap: wrap; }
+      .btn { font-size: 0.82rem; padding: 9px 16px; }
+    }
+
+    .separator {
+      height: 1px;
+      background: var(--border);
+      margin: 16px 0;
+    }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useState, useRef, useCallback } = React;
+
+    // 프론트엔드와 백엔드가 같은 서버에서 서빙됨
+    const API_BASE = '';
+
+    function FileUpload({ value, onChange, accept, placeholder }) {
+      const [drag, setDrag] = useState(false);
+      return (
+        <div
+          className={`file-upload-area ${drag ? 'drag-over' : ''}`}
+          onDragOver={e => { e.preventDefault(); setDrag(true); }}
+          onDragLeave={() => setDrag(false)}
+          onDrop={e => { e.preventDefault(); setDrag(false); onChange(e.dataTransfer.files[0]); }}
+        >
+          <input
+            type="file"
+            accept={accept}
+            onChange={e => onChange(e.target.files[0])}
+          />
+          <div className="file-upload-text">
+            {value ? (
+              <span className="file-name">📎 {value.name}</span>
+            ) : (
+              <>클릭하거나 파일을 여기에 드래그하세요<br /><span style={{fontSize:'0.75rem'}}>{placeholder}</span></>
+            )}
+          </div>
+        </div>
+      );
+    }
+
+    function Field({ label, hint, children }) {
+      return (
+        <div className="field-row">
+          <label>{label}{hint && <div className="hint">{hint}</div>}</label>
+          <div>{children}</div>
+        </div>
+      );
+    }
+
+    function StatusModal({ status, logs, onClose }) {
+      if (!status) return null;
+      const done = status === 'done' || status === 'error';
+      return (
+        <div className="status-modal">
+          <div className="status-card">
+            <h3>{status === 'error' ? '오류 발생' : status === 'done' ? '생성 완료!' : 'PPT 생성 중...'}</h3>
+            {!done && <div className="spinner" />}
+            {status === 'done' && <div className="status-success">✅ 파일이 다운로드되었습니다.</div>}
+            {status === 'error' && <div className="status-error">❌ 생성 중 오류가 발생했습니다.</div>}
+            {logs.length > 0 && (
+              <div className="log-area">
+                {logs.map((l, i) => <div key={i}>{l}</div>)}
+              </div>
+            )}
+            {done && <button className="btn-close" onClick={onClose}>닫기</button>}
+          </div>
+        </div>
+      );
+    }
+
+    function App() {
+      // 입력 상태
+      const [dateStr, setDateStr] = useState(() => {
+        const today = new Date();
+        const day = today.getDay();
+        const diff = (7 - day) % 7;
+        const sunday = new Date(today);
+        sunday.setDate(today.getDate() + diff);
+        const y = sunday.getFullYear();
+        const m = String(sunday.getMonth() + 1).padStart(2, '0');
+        const d = String(sunday.getDate()).padStart(2, '0');
+        return `${y}년 ${m}월 ${d}일`;
+      });
+      const [hymn1, setHymn1] = useState('');
+      const [respNum, setRespNum] = useState('');
+      const [hymn2, setHymn2] = useState('');
+      const [sermonTitle, setSermonTitle] = useState('');
+      const [sermonRef, setSermonRef] = useState('');
+      const [bibleLabel, setBibleLabel] = useState('');
+      const [bibleText, setBibleText] = useState('');
+      const [sermonSongTitle, setSermonSongTitle] = useState('');
+      const [sermonSongFile, setSermonSongFile] = useState(null);
+      const [choir1, setChoir1] = useState('호산나찬양대');
+      const [choir2, setChoir2] = useState('시온찬양대');
+      const [choirLyrics1, setChoirLyrics1] = useState('');
+      const [choirLyrics2, setChoirLyrics2] = useState('');
+      const [praiseText, setPraiseText] = useState('');
+      const [templateId1, setTemplateId1] = useState('');
+      const [templateId2, setTemplateId2] = useState('');
+      const [settingsOpen, setSettingsOpen] = useState(false);
+
+      // 상태 모달
+      const [modalStatus, setModalStatus] = useState(null);
+      const [logs, setLogs] = useState([]);
+      const [generating, setGenerating] = useState(false);
+
+      const generate = useCallback(async (part) => {
+        if (generating) return;
+        setGenerating(true);
+        setModalStatus('loading');
+        setLogs([`🚀 ${part === '1bu' ? '1부' : '2bu' === part ? '2부' : ''} PPT 생성 시작...`]);
+
+        const formData = new FormData();
+        formData.append('part', part);
+        formData.append('date_str', dateStr);
+        formData.append('hymn1', hymn1);
+        formData.append('resp_num', respNum);
+        formData.append('hymn2', hymn2);
+        formData.append('sermon_title', sermonTitle);
+        formData.append('sermon_ref', sermonRef);
+        formData.append('bible_label', bibleLabel);
+        formData.append('bible_text', bibleText);
+        formData.append('sermon_song_title', sermonSongTitle);
+        formData.append('choir_lyrics_1bu', choirLyrics1);
+        formData.append('choir_lyrics_2bu', choirLyrics2);
+        formData.append('choir_name_1bu', choir1);
+        formData.append('choir_name_2bu', choir2);
+        formData.append('praise_text', praiseText);
+        formData.append('template_file_id', part === '1bu' ? templateId1 : templateId2);
+        if (sermonSongFile) {
+          formData.append('sermon_song_file', sermonSongFile);
+        }
+
+        try {
+          const resp = await fetch(`${API_BASE}/generate`, {
+            method: 'POST',
+            body: formData,
+          });
+
+          if (!resp.ok) {
+            const err = await resp.json();
+            setLogs(prev => [...prev, `❌ 오류: ${err.detail || resp.statusText}`]);
+            setModalStatus('error');
+            return;
+          }
+
+          // 로그 헤더 파싱
+          const logHeader = resp.headers.get('X-Log');
+          if (logHeader) {
+            setLogs(logHeader.split(' | '));
+          }
+
+          // 파일 다운로드
+          const blob = await resp.blob();
+          const cd = resp.headers.get('Content-Disposition') || '';
+          const fnMatch = cd.match(/filename\*?=(?:UTF-8'')?([^;]+)/i);
+          const filename = fnMatch
+            ? decodeURIComponent(fnMatch[1].replace(/"/g, ''))
+            : `주일예배(${part === '1bu' ? '1부' : '2부'}).pptx`;
+
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = filename;
+          a.click();
+          URL.revokeObjectURL(url);
+
+          setModalStatus('done');
+        } catch (e) {
+          setLogs(prev => [...prev, `❌ 네트워크 오류: ${e.message}`]);
+          setModalStatus('error');
+        } finally {
+          setGenerating(false);
+        }
+      }, [generating, dateStr, hymn1, respNum, hymn2, sermonTitle, sermonRef,
+          bibleLabel, bibleText, sermonSongTitle, sermonSongFile,
+          choir1, choir2, choirLyrics1, choirLyrics2, praiseText,
+          templateId1, templateId2]);
+
+      const generateBoth = useCallback(async () => {
+        if (generating) return;
+        setGenerating(true);
+        setModalStatus('loading');
+        setLogs(['🚀 1부 & 2부 동시 생성 시작...']);
+
+        const makeFD = (part) => {
+          const fd = new FormData();
+          fd.append('part', part);
+          fd.append('date_str', dateStr);
+          fd.append('hymn1', hymn1);
+          fd.append('resp_num', respNum);
+          fd.append('hymn2', hymn2);
+          fd.append('sermon_title', sermonTitle);
+          fd.append('sermon_ref', sermonRef);
+          fd.append('bible_label', bibleLabel);
+          fd.append('bible_text', bibleText);
+          fd.append('sermon_song_title', sermonSongTitle);
+          fd.append('choir_lyrics_1bu', choirLyrics1);
+          fd.append('choir_lyrics_2bu', choirLyrics2);
+          fd.append('choir_name_1bu', choir1);
+          fd.append('choir_name_2bu', choir2);
+          fd.append('praise_text', praiseText);
+          fd.append('template_file_id', part === '1bu' ? templateId1 : templateId2);
+          if (sermonSongFile) fd.append('sermon_song_file', sermonSongFile);
+          return fd;
+        };
+
+        try {
+          const [r1, r2] = await Promise.all([
+            fetch(`${API_BASE}/generate`, { method: 'POST', body: makeFD('1bu') }),
+            fetch(`${API_BASE}/generate`, { method: 'POST', body: makeFD('2bu') }),
+          ]);
+
+          const newLogs = [];
+          for (const [resp, label] of [[r1, '1부'], [r2, '2부']]) {
+            if (!resp.ok) {
+              const err = await resp.json();
+              newLogs.push(`❌ ${label} 오류: ${err.detail || resp.statusText}`);
+              continue;
+            }
+            const logHeader = resp.headers.get('X-Log');
+            if (logHeader) newLogs.push(...logHeader.split(' | ').map(l => `[${label}] ${l}`));
+            const blob = await resp.blob();
+            const cd = resp.headers.get('Content-Disposition') || '';
+            const fnMatch = cd.match(/filename\*?=(?:UTF-8'')?([^;]+)/i);
+            const filename = fnMatch
+              ? decodeURIComponent(fnMatch[1].replace(/"/g, ''))
+              : `주일예배(${label}).pptx`;
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url; a.download = filename; a.click();
+            URL.revokeObjectURL(url);
+          }
+          setLogs(newLogs);
+          setModalStatus('done');
+        } catch (e) {
+          setLogs(prev => [...prev, `❌ 네트워크 오류: ${e.message}`]);
+          setModalStatus('error');
+        } finally {
+          setGenerating(false);
+        }
+      }, [generating, dateStr, hymn1, respNum, hymn2, sermonTitle, sermonRef,
+          bibleLabel, bibleText, sermonSongTitle, sermonSongFile,
+          choir1, choir2, choirLyrics1, choirLyrics2, praiseText,
+          templateId1, templateId2]);
+
+      return (
+        <>
+          <header>
+            <span className="cross-icon">✝</span>
+            <div>
+              <h1>주일예배 PPT 자동 생성기</h1>
+              <div className="subtitle">서울산정현교회 방송부</div>
+            </div>
+          </header>
+
+          <main>
+
+            {/* 예배 날짜 */}
+            <div className="section">
+              <div className="section-header">
+                <span className="section-title">예배 날짜</span>
+              </div>
+              <Field label="날짜" hint="예: 2026년 06월 01일">
+                <input type="text" value={dateStr} onChange={e => setDateStr(e.target.value)} />
+              </Field>
+            </div>
+
+            {/* 2부 전용 */}
+            <div className="section">
+              <div className="section-header">
+                <span className="section-title">찬양팀 & 성가대</span>
+                <span className="section-badge badge-2bu">2부 전용 / 1·2부 공통</span>
+              </div>
+
+              <Field label="찬양팀 가사" hint="2부 초반 · 빈 줄로 슬라이드 구분">
+                <textarea
+                  value={praiseText}
+                  onChange={e => setPraiseText(e.target.value)}
+                  placeholder={"[곡제목]\n가사 첫째 줄\n가사 둘째 줄\n\n가사 세번째 줄\n..."}
+                  rows={5}
+                />
+              </Field>
+
+              <div className="separator" />
+
+              <Field label="성가대 이름">
+                <div className="choir-row">
+                  <div className="choir-item">
+                    <label>1부:</label>
+                    <input type="text" value={choir1} onChange={e => setChoir1(e.target.value)} style={{width:'140px'}} />
+                  </div>
+                  <div className="choir-item">
+                    <label>2부:</label>
+                    <input type="text" value={choir2} onChange={e => setChoir2(e.target.value)} style={{width:'140px'}} />
+                  </div>
+                </div>
+              </Field>
+
+              <Field label="성가대 자막" hint="1부 · [제목] 첫 줄, 빈 줄로 슬라이드 구분">
+                <textarea
+                  value={choirLyrics1}
+                  onChange={e => setChoirLyrics1(e.target.value)}
+                  placeholder={"[곡 제목]\n가사 첫째 줄\n가사 둘째 줄\n\n가사 세번째 줄\n(간주)"}
+                  rows={4}
+                />
+              </Field>
+
+              <Field label="성가대 자막" hint="2부 · [제목] 첫 줄, 빈 줄로 슬라이드 구분">
+                <textarea
+                  value={choirLyrics2}
+                  onChange={e => setChoirLyrics2(e.target.value)}
+                  placeholder={"[곡 제목]\n가사 첫째 줄\n가사 둘째 줄\n\n가사 세번째 줄"}
+                  rows={4}
+                />
+              </Field>
+            </div>
+
+            {/* 1·2부 공통 */}
+            <div className="section">
+              <div className="section-header">
+                <span className="section-title">예배 순서</span>
+                <span className="section-badge badge-common">1·2부 공통</span>
+              </div>
+
+              <Field label="찬송가 ①" hint="예: 93">
+                <div className="input-group">
+                  <input className="input-short" type="number" min="1" max="645"
+                    value={hymn1} onChange={e => setHymn1(e.target.value)} />
+                  <span className="unit-label">장</span>
+                </div>
+              </Field>
+
+              <Field label="교독문" hint="예: 1">
+                <div className="input-group">
+                  <input className="input-short" type="number" min="1"
+                    value={respNum} onChange={e => setRespNum(e.target.value)} />
+                  <span className="unit-label">번</span>
+                </div>
+              </Field>
+
+              <Field label="찬송가 ②">
+                <div className="input-group">
+                  <input className="input-short" type="number" min="1" max="645"
+                    value={hymn2} onChange={e => setHymn2(e.target.value)} />
+                  <span className="unit-label">장</span>
+                </div>
+              </Field>
+
+              <div className="separator" />
+
+              <Field label="설교 제목">
+                <input type="text" value={sermonTitle} onChange={e => setSermonTitle(e.target.value)}
+                  placeholder="설교 제목을 입력하세요" />
+              </Field>
+
+              <Field label="설교 본문" hint="예: 벧후 1:1-7">
+                <input type="text" value={sermonRef} onChange={e => setSermonRef(e.target.value)}
+                  placeholder="예: 벧후 1:1-7" />
+              </Field>
+
+              <Field label="봉독 구절 표기" hint="예: 룻기 3">
+                <input type="text" value={bibleLabel} onChange={e => setBibleLabel(e.target.value)}
+                  placeholder="예: 룻기 3  (비우면 설교 본문에서 자동 추출)" />
+              </Field>
+
+              <Field label="성경 봉독 본문" hint="Godpia에서 복사 붙여넣기">
+                <textarea
+                  value={bibleText}
+                  onChange={e => setBibleText(e.target.value)}
+                  placeholder={"1여기에 성경 본문을 붙여넣으세요\n2다음 절..."}
+                  rows={5}
+                />
+              </Field>
+            </div>
+
+            {/* 설교찬양 */}
+            <div className="section">
+              <div className="section-header">
+                <span className="section-title">설교찬양 악보</span>
+                <span className="section-badge badge-sermon">1·2부 공통</span>
+              </div>
+
+              <Field label="설교찬양 제목">
+                <input type="text" value={sermonSongTitle} onChange={e => setSermonSongTitle(e.target.value)}
+                  placeholder="설교찬양 제목" />
+              </Field>
+
+              <Field label="악보 파일" hint=".ppt / .pptx">
+                <FileUpload
+                  value={sermonSongFile}
+                  onChange={setSermonSongFile}
+                  accept=".ppt,.pptx"
+                  placeholder=".ppt 파일은 자동으로 .pptx로 변환됩니다"
+                />
+              </Field>
+            </div>
+
+            {/* 설정 (접기/펼치기) */}
+            <div className="section">
+              <button
+                className={`settings-toggle ${settingsOpen ? 'open' : ''}`}
+                onClick={() => setSettingsOpen(o => !o)}
+              >
+                <span className="arrow">▶</span>
+                ⚙️ 템플릿 설정 (기본값 변경 시에만 수정)
+              </button>
+
+              {settingsOpen && (
+                <div className="settings-content">
+                  <Field label="1부 템플릿" hint="Drive 파일 ID (비우면 기본 파일 사용)">
+                    <input type="text" value={templateId1} onChange={e => setTemplateId1(e.target.value)}
+                      placeholder="Google Drive 파일 ID" />
+                  </Field>
+                  <Field label="2부 템플릿" hint="Drive 파일 ID (비우면 기본 파일 사용)">
+                    <input type="text" value={templateId2} onChange={e => setTemplateId2(e.target.value)}
+                      placeholder="Google Drive 파일 ID" />
+                  </Field>
+                </div>
+              )}
+            </div>
+
+          </main>
+
+          {/* 하단 고정 버튼 */}
+          <div className="bottom-bar">
+            <button className="btn btn-1bu" onClick={() => generate('1bu')} disabled={generating}>
+              🎵 1부 PPT 생성
+            </button>
+            <button className="btn btn-2bu" onClick={() => generate('2bu')} disabled={generating}>
+              🎶 2부 PPT 생성
+            </button>
+            <button className="btn btn-both" onClick={generateBoth} disabled={generating}>
+              ⚡ 1·2부 동시 생성
+            </button>
+          </div>
+
+          {/* 상태 모달 */}
+          <StatusModal
+            status={modalStatus}
+            logs={logs}
+            onClose={() => setModalStatus(null)}
+          />
+        </>
+      );
+    }
+
+    ReactDOM.render(<App />, document.getElementById('root'));
+  </script>
+</body>
+</html>
