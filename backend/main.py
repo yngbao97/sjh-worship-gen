@@ -234,6 +234,13 @@ async def generate_ppt(
         # ── 찬양팀 가사 (2부 전용) ────────────────────
         if part == '2bu' and praise_text.strip():
             songs = parse_praise_input(praise_text.strip())
+            # \x00(임시 줄바꿈 치환자) → \n 복원
+            for song in songs:
+                song['title'] = song['title'].replace('\x00', '\n')
+                song['slides'] = [
+                    [line.replace('\x00', '\n') for line in slide]
+                    for slide in song['slides']
+                ]
             _log(f"✨ 찬양팀 가사: {len(songs)}곡")
             applied = apply_praise_lyrics(out_path, songs)
             _log(f"   → {applied}슬라이드 입력 완료")
