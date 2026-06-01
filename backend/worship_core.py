@@ -603,6 +603,13 @@ def parse_praise_input(text: str) -> list:
         current_slides.append(current_lines)
     if current_title or current_slides:
         songs.append({'title': current_title, 'slides': current_slides})
+    # NULL 바이트 제거 (parse 과정에서 줄바꿈 임시 치환한 것 복원)
+    for song in songs:
+        song['title'] = song['title'].replace('\x00', '\n')
+        song['slides'] = [
+            [line.replace('\x00', '') for line in slide]
+            for slide in song['slides']
+        ]
     return songs
 
 
@@ -847,7 +854,7 @@ def _build_praise_src_pptx(template_path: str, songs: list) -> str:
     def _raw(shape, lines, rpr_t, ppr_t):
         txBody = shape.text_frame._txBody
         for p in txBody.findall(qn('a:p')): txBody.remove(p)
-        for line in lines:
+        for line in [l.replace('\x00', '\n').strip() if isinstance(l, str) else l for l in lines]:
             p_e = etree.Element(qn('a:p'))
             if ppr_t is not None: p_e.append(copy.deepcopy(ppr_t))
             r_e = etree.SubElement(p_e, qn('a:r'))
