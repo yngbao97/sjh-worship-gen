@@ -1093,12 +1093,14 @@ def _build_praise_src_pptx(template_path: str, songs: list[dict]) -> str:
         txBody = shape.text_frame._txBody
         for p in txBody.findall(qn('a:p')): txBody.remove(p)
         for line in lines:
+            # XML 비호환 제어 문자 제거 (\t, \n 제외)
+            clean = ''.join(c for c in (line or '') if c >= ' ' or c in '\t\n')
             p_e = etree.Element(qn('a:p'))
             if ppr_t is not None: p_e.append(copy.deepcopy(ppr_t))
             r_e = etree.SubElement(p_e, qn('a:r'))
             if rpr_t is not None: r_e.insert(0, copy.deepcopy(rpr_t))
             t_e = etree.SubElement(r_e, qn('a:t'))
-            t_e.text = line
+            t_e.text = clean
             txBody.append(p_e)
 
     for song in songs:
