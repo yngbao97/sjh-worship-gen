@@ -785,6 +785,8 @@ def parse_praise_input(text: str) -> list[dict]:
     반환: [{'title': str, 'slides': [['줄1','줄2'], ...]}, ...]
     """
     import re as _re
+    # 웹 입력의 \r\n 또는 \r 줄바꿈을 \n으로 통일
+    text = text.replace('\r\n', '\n').replace('\r', '\n')
     NL = '\x00'
     def _fix_bracket(m):
         inner = m.group(1).replace('\n', NL).strip(NL).strip()
