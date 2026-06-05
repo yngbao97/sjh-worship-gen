@@ -1089,7 +1089,14 @@ def _build_praise_src_pptx(template_path: str, songs: list[dict]) -> str:
                 padded = lines[:2] if len(lines) >= 2 else [lines[0], ''] if lines else ['', '']
                 _raw(sh, padded, rpr14, ppr14)
             elif sh.name == '자유형: 도형 6':
-                _raw(sh, _split_title(title), rpr6, ppr6)
+                title_lines = _split_title(title)
+                # 한 줄이 6자 초과이면 자간 좁게(spc=-100) 적용
+                if any(len(l) > 6 for l in title_lines):
+                    rpr6_use = copy.deepcopy(rpr6) if rpr6 is not None else etree.Element(qn('a:rPr'))
+                    rpr6_use.set('spc', '-100')
+                    _raw(sh, title_lines, rpr6_use, ppr6)
+                else:
+                    _raw(sh, title_lines, rpr6, ppr6)
 
     def _raw(shape, lines, rpr_t, ppr_t):
         txBody = shape.text_frame._txBody
