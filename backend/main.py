@@ -27,6 +27,8 @@ from worship_core import (
     apply_choir_lyrics,
     parse_praise_input,
     apply_praise_lyrics,
+    apply_special_song,
+    delete_special_song,
 )
 from drive_client import download_hymn, download_responsory, download_template
 
@@ -82,6 +84,14 @@ async def generate_ppt(
     choir_name_1bu: str = Form("호산나찬양대"),
     choir_name_2bu: str = Form("시온찬양대"),
     praise_text: str = Form(""),
+    special_song_1bu: str = Form("false"),
+    special_song_2bu: str = Form("false"),
+    special_song_type_1bu: str = Form("봉헌송"),
+    special_song_type_2bu: str = Form("봉헌송"),
+    special_song_performer_1bu: str = Form(""),
+    special_song_performer_2bu: str = Form(""),
+    special_song_lyrics_1bu: str = Form(""),
+    special_song_lyrics_2bu: str = Form(""),
     template_file_id: str = Form(""),              # 사용자 지정 템플릿 Drive ID
     sermon_song_file: UploadFile = File(None),     # 설교찬양 .ppt/.pptx 업로드
 ):
@@ -230,6 +240,38 @@ async def generate_ppt(
             applied = apply_choir_lyrics(prs, choir_blocks, choir_name, choir_song_title)
             prs.save(out_path)
             _log(f"   → {applied}슬라이드 입력 완료")
+
+        # ── 특송 ──────────────────────────────────────
+        ss_enabled   = special_song_1bu   if part == '1bu' else special_song_2bu
+        ss_type      = special_song_type_1bu if part == '1bu' else special_song_type_2bu
+        ss_performer = special_song_performer_1bu if part == '1bu' else special_song_performer_2bu
+        ss_lyrics    = special_song_lyrics_1bu    if part == '1bu' else special_song_lyrics_2bu
+
+        if ss_enabled.lower() == 'true':
+            lines = ss_lyrics.strip().replace('\r\n', '\n').replace('\r', '\n').splitlines()
+            first = lines[0].strip() if lines else ""
+            if first.startswith('[') and first.endswith(']'):
+                ss_title   = first[1:-1]
+                remaining  = '\n'.join(lines[1:]).strip()
+                ss_blocks  = parse_choir_input(remaining) if remaining else []
+            else:
+                ss_title   = ""
+                ss_blocks  = parse_choir_input(ss_lyrics) if ss_lyrics.strip() else []
+            _log(f"🎤 특송: {ss_type or '봉헌송'} ({ss_performer})")
+            applied_ss2 = apply_special_song(
+                out_path,
+                ss_type.strip() or '봉헌송',
+                ss_title,
+                ss_performer.strip(),
+                ss_blocks,
+            )
+            if applied_ss2:
+                _log(f"   → {applied_ss2}슬라이드 가사 입력 완료")
+            else:
+                _log("   → 제목만 입력 완료")
+        else:
+            delete_special_song(out_path)
+            _log("🚫 특송 없음 → 특송 구역 삭제")
 
         # ── 찬양팀 가사 (2부 전용) ────────────────────
         if part == '2bu' and praise_text.strip():

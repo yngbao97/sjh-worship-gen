@@ -1298,4 +1298,207 @@ def apply_choir_lyrics(prs, blocks: list[list[str]],
     return applied
 
 
+# ───────────────────────────────────────────────
+# 특송
+# ───────────────────────────────────────────────
+
+def get_special_song_region(prs):
+    """
+    특송 구역 탐지 (직사각형 6 + 찬양대 없음).
+    반환: {full_start, full_end, title_idx, lyric_start, lyric_end} 또는 None
+    """
+    for i, sl in enumerate(prs.slides):
+        names = [sh.name for sh in sl.shapes]
+        # 직선 연결선 7 이 있고 직사각형 6 에 '찬양대'가 없는 슬라이드 = 특송 제목 슬라이드
+        if '직선 연결선 7' in names and '직사각형 6' in names:
+            is_choir = any(
+                sh.name == '직사각형 6' and sh.has_text_frame
+                and '찬양대' in sh.text_frame.text
+                for sh in sl.shapes
+            )
+            if is_choir:
+                continue
+            title_idx = i
+            # 앞 빈 슬라이드(그룹 1만 있는) 포함
+            full_start = title_idx
+            if title_idx > 0:
+                prev = [s.name for s in prs.slides[title_idx - 1].shapes]
+                if prev == ['그룹 1']:
+                    full_start = title_idx - 1
+            # 뒤 구조 탐지 (그림 4까지)
+            full_end = title_idx
+            lyric_start = lyric_end = None
+            for j in range(title_idx + 1, len(prs.slides)):
+                names_j = [s.name for s in prs.slides[j].shapes]
+                full_end = j
+                if '그림 4' in names_j:
+                    break
+                if 'TextBox 1' in names_j and '그룹 5' in names_j:
+                    if lyric_start is None:
+                        lyric_start = j
+                    lyric_end = j
+            return dict(full_start=full_start, full_end=full_end,
+                        title_idx=title_idx,
+                        lyric_start=lyric_start, lyric_end=lyric_end)
+    return None
+
+
+def _make_empty_pptx(template_path: str) -> str:
+    """슬라이드 0개인 임시 pptx 생성 (replace_slides_zip의 src로 사용)."""
+    import tempfile as _tmp, shutil as _sh2
+    path = _tmp.mktemp(suffix='.pptx')
+    _sh2.copy2(template_path, path)
+    p = Presentation(path)
+    lst = p.slides._sldIdLst
+    for e in list(lst.sldId_lst):
+        lst.remove(e)
+    p.save(path)
+    return path
+
+
+def apply_special_song(out_path: str, song_type: str, song_title: str,
+                        performer: str, blocks: list) -> int:
+    """
+    특송 적용.
+    song_type: 직사각형6 para0 (예: '봉헌송')
+    song_title: [] 안 텍스트 (para2)
+    performer:  특송자 이름 → para4에 (이름) 형식으로
+    blocks: parse_choir_input 결과 (빈 리스트이면 가사 없음)
+    반환: 적용된 가사 슬라이드 수
+    """
+    import warnings as _w, os as _os
+
+    prs = Presentation(out_path)
+    region = get_special_song_region(prs)
+    if region is None:
+        return 0
+
+    title_idx  = region['title_idx']
+    full_end   = region['full_end']
+
+    # ── 제목 슬라이드 치환 ──────────────────────────
+    sl = prs.slides[title_idx]
+    for sh in sl.shapes:
+        if sh.name == '직사각형 6' and sh.has_text_frame:
+            paras = sh.text_frame.paragraphs
+            if len(paras) >= 5:
+                def _set_para_text(para, text):
+                    runs = para.runs
+                    if runs:
+                        runs[0].text = text
+                        for r in runs[1:]: r.text = ''
+                    else:
+                        rpr_src = (paras[0].runs[0]._r.find(qn('a:rPr'))
+                                   if paras[0].runs else None)
+                        r_e = etree.SubElement(para._p, qn('a:r'))
+                        if rpr_src is not None:
+                            r_e.insert(0, copy.deepcopy(rpr_src))
+                        t_e = etree.SubElement(r_e, qn('a:t'))
+                        t_e.text = text
+                _set_para_text(paras[0], song_type)
+                _set_para_text(paras[2], song_title)
+                _set_para_text(paras[4], f'({performer})')
+            break
+
+    if not blocks:
+        # ── 가사 없음: 앞blank + title + 뒤blank + 그림4만 유지 ──
+        del_start = title_idx + 2
+        del_count = full_end - del_start  # full_end(그림4) 제외
+        if del_count > 0:
+            prs.save(out_path)
+            empty = _make_empty_pptx(out_path)
+            try:
+                with _w.catch_warnings():
+                    _w.simplefilter("ignore")
+                    replace_slides_zip(out_path, del_start, del_count, empty, out_path)
+            finally:
+                try: _os.unlink(empty)
+                except: pass
+        else:
+            prs.save(out_path)
+        return 0
+
+    # ── 가사 있음: 성가대와 동일한 방식으로 가사 슬라이드 채우기 ──
+    lyric_start = region['lyric_start']
+    lyric_end   = region['lyric_end']
+    if lyric_start is None:
+        prs.save(out_path)
+        return 0
+
+    FADE_XML = ('<p:transition xmlns:p="http://schemas.openxmlformats.org/'
+                'presentationml/2006/main"><p:fade/></p:transition>')
+
+    def _add_fade(slide_elem):
+        ns_p = 'http://schemas.openxmlformats.org/presentationml/2006/main'
+        for t in slide_elem.findall(f'{{{ns_p}}}transition'):
+            slide_elem.remove(t)
+        slide_elem.append(etree.fromstring(FADE_XML))
+
+    def _clone_lyric(tmpl_idx, after_idx):
+        src = prs.slides[tmpl_idx]
+        new_sl = prs.slides.add_slide(src.slide_layout)
+        dst = new_sl.shapes._spTree
+        for c in list(dst): dst.remove(c)
+        for c in src.shapes._spTree: dst.append(copy.deepcopy(c))
+        for rel in src.part.rels.values():
+            if 'image' in rel.reltype:
+                try: new_sl.part.relate_to(rel.target_part, rel.reltype)
+                except: pass
+        lst = prs.slides._sldIdLst
+        new_e = list(lst.sldId_lst)[-1]
+        lst.remove(new_e)
+        cur = list(lst.sldId_lst)
+        if after_idx + 1 < len(cur):
+            cur[after_idx + 1].addprevious(new_e)
+        else:
+            lst.append(new_e)
+        return after_idx + 1
+
+    region_list = list(range(lyric_start, lyric_end + 1))
+    template_idx = region_list[0]
+
+    while len(region_list) < len(blocks):
+        new_idx = _clone_lyric(template_idx, region_list[-1])
+        region_list.append(new_idx)
+
+    applied = 0
+    for pos, block in enumerate(blocks):
+        if pos >= len(region_list):
+            break
+        idx = region_list[pos]
+        for sh in prs.slides[idx].shapes:
+            if sh.name == 'TextBox 1' and sh.has_text_frame:
+                lines = block if block != 'interlude' else []
+                _set_textbox_lines(sh, lines, anchor='t' if lines else 'ctr')
+        _add_fade(prs.slides[idx]._element)
+        applied += 1
+
+    # 남는 슬라이드 제거
+    if len(blocks) < len(region_list):
+        lst = prs.slides._sldIdLst
+        all_ids = list(lst.sldId_lst)
+        for e in all_ids[lyric_start + len(blocks): lyric_start + len(region_list)]:
+            lst.remove(e)
+
+    prs.save(out_path)
+    return applied
+
+
+def delete_special_song(out_path: str):
+    """특송 구역 전체 삭제."""
+    import warnings as _w, os as _os
+    prs = Presentation(out_path)
+    region = get_special_song_region(prs)
+    if region is None:
+        return
+    start = region['full_start']
+    count = region['full_end'] - start + 1
+    empty = _make_empty_pptx(out_path)
+    try:
+        with _w.catch_warnings():
+            _w.simplefilter("ignore")
+            replace_slides_zip(out_path, start, count, empty, out_path)
+    finally:
+        try: _os.unlink(empty)
+        except: pass
 

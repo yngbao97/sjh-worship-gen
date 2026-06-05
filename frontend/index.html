@@ -409,6 +409,45 @@
       background: var(--border);
       margin: 16px 0;
     }
+
+    /* 특송 토글 */
+    .toggle-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 14px;
+      cursor: pointer;
+      user-select: none;
+    }
+    .toggle-row input[type="checkbox"] {
+      width: 17px;
+      height: 17px;
+      cursor: pointer;
+      accent-color: var(--accent);
+      flex-shrink: 0;
+    }
+    .toggle-label {
+      font-size: 0.9rem;
+      font-weight: 500;
+      color: var(--text);
+    }
+    .subsection {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 16px;
+      margin-bottom: 12px;
+    }
+    .subsection:last-child { margin-bottom: 0; }
+    .subsection-title {
+      font-size: 0.78rem;
+      font-weight: 700;
+      color: var(--text-muted);
+      letter-spacing: 0.06em;
+      margin-bottom: 12px;
+      text-transform: uppercase;
+    }
+    .badge-special { background: #fdf0e8; color: #8a4a18; }
   </style>
 </head>
 <body>
@@ -502,6 +541,15 @@
       const [choirLyrics1, setChoirLyrics1] = useState('');
       const [choirLyrics2, setChoirLyrics2] = useState('');
       const [praiseText, setPraiseText] = useState('');
+      // 특송
+      const [specialSong1, setSpecialSong1] = useState(false);
+      const [specialSong2, setSpecialSong2] = useState(false);
+      const [specialSongType1, setSpecialSongType1] = useState('봉헌송');
+      const [specialSongType2, setSpecialSongType2] = useState('봉헌송');
+      const [specialSongPerformer1, setSpecialSongPerformer1] = useState('');
+      const [specialSongPerformer2, setSpecialSongPerformer2] = useState('');
+      const [specialSongLyrics1, setSpecialSongLyrics1] = useState('');
+      const [specialSongLyrics2, setSpecialSongLyrics2] = useState('');
       const [templateId1, setTemplateId1] = useState('');
       const [templateId2, setTemplateId2] = useState('');
       const [settingsOpen, setSettingsOpen] = useState(false);
@@ -533,6 +581,14 @@
         formData.append('choir_name_1bu', choir1);
         formData.append('choir_name_2bu', choir2);
         formData.append('praise_text', praiseText);
+        formData.append('special_song_1bu', String(specialSong1));
+        formData.append('special_song_2bu', String(specialSong2));
+        formData.append('special_song_type_1bu', specialSongType1);
+        formData.append('special_song_type_2bu', specialSongType2);
+        formData.append('special_song_performer_1bu', specialSongPerformer1);
+        formData.append('special_song_performer_2bu', specialSongPerformer2);
+        formData.append('special_song_lyrics_1bu', specialSongLyrics1);
+        formData.append('special_song_lyrics_2bu', specialSongLyrics2);
         formData.append('template_file_id', part === '1bu' ? templateId1 : templateId2);
         if (sermonSongFile) {
           formData.append('sermon_song_file', sermonSongFile);
@@ -577,6 +633,8 @@
       }, [generating, dateStr, hymn1, respNum, hymn2, sermonTitle, sermonRef,
           bibleLabel, bibleText, sermonSongTitle, sermonSongFile,
           choir1, choir2, choirLyrics1, choirLyrics2, praiseText,
+          specialSong1, specialSong2, specialSongType1, specialSongType2,
+          specialSongPerformer1, specialSongPerformer2, specialSongLyrics1, specialSongLyrics2,
           templateId1, templateId2]);
 
       const generateBoth = useCallback(async () => {
@@ -602,6 +660,14 @@
           fd.append('choir_name_1bu', choir1);
           fd.append('choir_name_2bu', choir2);
           fd.append('praise_text', praiseText);
+          fd.append('special_song_1bu', String(specialSong1));
+          fd.append('special_song_2bu', String(specialSong2));
+          fd.append('special_song_type_1bu', specialSongType1);
+          fd.append('special_song_type_2bu', specialSongType2);
+          fd.append('special_song_performer_1bu', specialSongPerformer1);
+          fd.append('special_song_performer_2bu', specialSongPerformer2);
+          fd.append('special_song_lyrics_1bu', specialSongLyrics1);
+          fd.append('special_song_lyrics_2bu', specialSongLyrics2);
           fd.append('template_file_id', part === '1bu' ? templateId1 : templateId2);
           if (sermonSongFile) fd.append('sermon_song_file', sermonSongFile);
           return fd;
@@ -643,6 +709,8 @@
       }, [generating, dateStr, hymn1, respNum, hymn2, sermonTitle, sermonRef,
           bibleLabel, bibleText, sermonSongTitle, sermonSongFile,
           choir1, choir2, choirLyrics1, choirLyrics2, praiseText,
+          specialSong1, specialSong2, specialSongType1, specialSongType2,
+          specialSongPerformer1, specialSongPerformer2, specialSongLyrics1, specialSongLyrics2,
           templateId1, templateId2]);
 
       return (
@@ -795,6 +863,80 @@
                   placeholder=".ppt 파일은 자동으로 .pptx로 변환됩니다"
                 />
               </Field>
+            </div>
+
+            {/* 특송 */}
+            <div className="section">
+              <div className="section-header">
+                <span className="section-title">특송</span>
+                <span className="section-badge badge-special">1·2부 개별</span>
+              </div>
+
+              {/* 1부 특송 */}
+              <div className="subsection">
+                <div className="subsection-title">1부</div>
+                <label className="toggle-row">
+                  <input type="checkbox"
+                    checked={specialSong1}
+                    onChange={e => setSpecialSong1(e.target.checked)} />
+                  <span className="toggle-label">특송 포함</span>
+                </label>
+                {specialSong1 && (
+                  <>
+                    <Field label="특송 유형" hint="기본값: 봉헌송">
+                      <input type="text" value={specialSongType1}
+                        onChange={e => setSpecialSongType1(e.target.value)}
+                        placeholder="봉헌송" />
+                    </Field>
+                    <Field label="특송자">
+                      <input type="text" value={specialSongPerformer1}
+                        onChange={e => setSpecialSongPerformer1(e.target.value)}
+                        placeholder="예: 이신영 청년" />
+                    </Field>
+                    <Field label="특송 가사" hint="[곡명] 첫 줄, 빈 줄로 슬라이드 구분 · 가사 없으면 [곡명]만">
+                      <textarea
+                        value={specialSongLyrics1}
+                        onChange={e => setSpecialSongLyrics1(e.target.value)}
+                        placeholder={"[곡 제목]\n가사 첫째 줄\n가사 둘째 줄\n\n가사 세번째 줄"}
+                        rows={4}
+                      />
+                    </Field>
+                  </>
+                )}
+              </div>
+
+              {/* 2부 특송 */}
+              <div className="subsection">
+                <div className="subsection-title">2부</div>
+                <label className="toggle-row">
+                  <input type="checkbox"
+                    checked={specialSong2}
+                    onChange={e => setSpecialSong2(e.target.checked)} />
+                  <span className="toggle-label">특송 포함</span>
+                </label>
+                {specialSong2 && (
+                  <>
+                    <Field label="특송 유형" hint="기본값: 봉헌송">
+                      <input type="text" value={specialSongType2}
+                        onChange={e => setSpecialSongType2(e.target.value)}
+                        placeholder="봉헌송" />
+                    </Field>
+                    <Field label="특송자">
+                      <input type="text" value={specialSongPerformer2}
+                        onChange={e => setSpecialSongPerformer2(e.target.value)}
+                        placeholder="예: 이신영 청년" />
+                    </Field>
+                    <Field label="특송 가사" hint="[곡명] 첫 줄, 빈 줄로 슬라이드 구분 · 가사 없으면 [곡명]만">
+                      <textarea
+                        value={specialSongLyrics2}
+                        onChange={e => setSpecialSongLyrics2(e.target.value)}
+                        placeholder={"[곡 제목]\n가사 첫째 줄\n가사 둘째 줄\n\n가사 세번째 줄"}
+                        rows={4}
+                      />
+                    </Field>
+                  </>
+                )}
+              </div>
             </div>
 
             {/* 설정 (접기/펼치기) */}
