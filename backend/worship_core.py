@@ -1090,12 +1090,32 @@ def _build_praise_src_pptx(template_path: str, songs: list[dict]) -> str:
                 _raw(sh, padded, rpr14, ppr14)
             elif sh.name == '자유형: 도형 6':
                 title_lines = _split_title(title)
-                # 한 줄이 6자 초과이면 자간 좁게(spc=-100) 적용
-                if any(len(l) > 6 for l in title_lines):
+                max_len = max((len(l) for l in title_lines), default=0)
+                if max_len >= 8:
+                    # 8자 이상 줄 존재: 줄별로 좁게/매우좁게 구분 적용
+                    txBody = sh.text_frame._txBody
+                    for p in txBody.findall(qn('a:p')): txBody.remove(p)
+                    for line in title_lines:
+                        clean = ''.join(c for c in (line or '') if c >= ' ' or c in '\t\n')
+                        rpr_line = copy.deepcopy(rpr6) if rpr6 is not None else etree.Element(qn('a:rPr'))
+                        if len(line) >= 8:
+                            rpr_line.set('spc', '-200')  # 매우좁게
+                        else:
+                            rpr_line.set('spc', '-100')  # 좁게
+                        p_e = etree.Element(qn('a:p'))
+                        if ppr6 is not None: p_e.append(copy.deepcopy(ppr6))
+                        r_e = etree.SubElement(p_e, qn('a:r'))
+                        r_e.insert(0, rpr_line)
+                        t_e = etree.SubElement(r_e, qn('a:t'))
+                        t_e.text = clean
+                        txBody.append(p_e)
+                elif max_len >= 7:
+                    # 7자 줄 존재(8자는 없음): 전체 좁게
                     rpr6_use = copy.deepcopy(rpr6) if rpr6 is not None else etree.Element(qn('a:rPr'))
                     rpr6_use.set('spc', '-100')
                     _raw(sh, title_lines, rpr6_use, ppr6)
                 else:
+                    # 6자 이하: 표준
                     _raw(sh, title_lines, rpr6, ppr6)
 
     def _raw(shape, lines, rpr_t, ppr_t):
@@ -1162,13 +1182,31 @@ def apply_praise_lyrics(out_path: str, songs: list[dict]) -> int:
 
 def get_choir_region(prs) -> tuple[int, int] | tuple[None, None]:
     """성가대 가사 구역 (TextBox 1 + 그룹 5) 슬라이드 범위 반환.
+    성가대 타이틀 슬라이드(직선 연결선 7 + 직사각형 6 + '찬양대' 텍스트) 뒤에 오는
+    TextBox 1 + 그룹 5 구역만 찾는다. (특송 가사 슬라이드와 구분)
     뒤쪽 구분자(그룹 5만 있는 빈 슬라이드)는 구역에서 제외."""
+    # 1단계: 성가대 타이틀 슬라이드 위치 탐색
+    choir_title_idx = None
     for i, sl in enumerate(prs.slides):
         names = [sh.name for sh in sl.shapes]
+        if '직선 연결선 7' in names and '직사각형 6' in names:
+            for sh in sl.shapes:
+                if sh.name == '직사각형 6' and sh.has_text_frame:
+                    if '찬양대' in sh.text_frame.text:
+                        choir_title_idx = i
+                        break
+        if choir_title_idx is not None:
+            break
+
+    if choir_title_idx is None:
+        return None, None
+
+    # 2단계: 타이틀 이후 TextBox 1 + 그룹 5 구역 탐색
+    for i in range(choir_title_idx + 1, len(prs.slides)):
+        names = [sh.name for sh in prs.slides[i].shapes]
         if 'TextBox 1' in names and '그룹 5' in names:
             start = i
             end = i
-            # TextBox 1이 있거나 그룹5만 있는 슬라이드까지 포함
             while end + 1 < len(prs.slides):
                 next_names = [sh.name for sh in prs.slides[end+1].shapes]
                 if '그룹 5' in next_names:
@@ -1183,6 +1221,7 @@ def get_choir_region(prs) -> tuple[int, int] | tuple[None, None]:
                 else:
                     break
             return start, end
+
     return None, None
 
 
