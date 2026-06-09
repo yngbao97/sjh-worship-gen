@@ -211,6 +211,12 @@ def download_template(part: str, dest_dir: str, custom_file_id: str = None) -> O
     import logging
     logging.warning(f"[DEBUG] ROOT_FOLDER_ID={ROOT_FOLDER_ID}, items={[i['name'] for i in all_items]}")
     file_id = next((i['id'] for i in all_items if i['name'] == default_name), None)
+    # 유니코드 정규화 후 재시도
+    import unicodedata
+    if file_id is None:
+        norm_default = unicodedata.normalize('NFC', default_name)
+        file_id = next((i['id'] for i in all_items
+                        if unicodedata.normalize('NFC', i['name']) == norm_default), None)
     logging.warning(f"[DEBUG] default_name={default_name!r}, file_id={file_id}")
     if file_id:
         try:
