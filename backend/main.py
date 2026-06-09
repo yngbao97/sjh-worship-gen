@@ -312,8 +312,9 @@ async def generate_ppt(
     except HTTPException:
         raise
     except Exception as e:
-        import traceback
+        import traceback, logging
         detail = f"{e}\n{traceback.format_exc()}"
+        logging.error(f"[ERROR] {detail}")
         raise HTTPException(status_code=500, detail=detail)
 
 
