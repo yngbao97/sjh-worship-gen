@@ -51,7 +51,9 @@ def _list_folder(service, folder_id: str) -> list:
             q=f"'{folder_id}' in parents and trashed=false",
             fields="nextPageToken, files(id, name, mimeType)",
             pageToken=page_token,
-            pageSize=1000
+            pageSize=1000,
+            includeItemsFromAllDrives=True,
+            supportsAllDrives=True,
         ).execute()
         results.extend(resp.get('files', []))
         page_token = resp.get('nextPageToken')
@@ -62,7 +64,7 @@ def _list_folder(service, folder_id: str) -> list:
 
 def _download_file(service, file_id: str, dest_path: str):
     """Drive 파일을 로컬 경로로 다운로드"""
-    request = service.files().get_media(fileId=file_id)
+    request = service.files().get_media(fileId=file_id, supportsAllDrives=True)
     with open(dest_path, 'wb') as f:
         downloader = MediaIoBaseDownload(f, request)
         done = False
@@ -205,7 +207,10 @@ def download_template(part: str, dest_dir: str, custom_file_id: str = None) -> O
 
     # 기본: 루트 폴더에서 파일명으로 탐색
     default_name = DEFAULT_TEMPLATE_1BU if part == '1bu' else DEFAULT_TEMPLATE_2BU
-    file_id = _find_file_by_name(service, ROOT_FOLDER_ID, default_name)
+    all_items = _list_folder(service, ROOT_FOLDER_ID)
+    import logging
+    logging.warning(f"[DEBUG] ROOT_FOLDER_ID={ROOT_FOLDER_ID}, items={[i['name'] for i in all_items]}")
+    file_id = next((i['id'] for i in all_items if i['name'] == default_name), None)
     if file_id:
         dest_path = str(Path(dest_dir) / default_name)
         _download_file(service, file_id, dest_path)
