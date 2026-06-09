@@ -211,9 +211,16 @@ def download_template(part: str, dest_dir: str, custom_file_id: str = None) -> O
     import logging
     logging.warning(f"[DEBUG] ROOT_FOLDER_ID={ROOT_FOLDER_ID}, items={[i['name'] for i in all_items]}")
     file_id = next((i['id'] for i in all_items if i['name'] == default_name), None)
+    logging.warning(f"[DEBUG] default_name={default_name!r}, file_id={file_id}")
     if file_id:
-        dest_path = str(Path(dest_dir) / default_name)
-        _download_file(service, file_id, dest_path)
-        return dest_path
+        try:
+            dest_path = str(Path(dest_dir) / default_name)
+            _download_file(service, file_id, dest_path)
+            logging.warning(f"[DEBUG] download OK: {dest_path}")
+            return dest_path
+        except Exception as e:
+            import traceback
+            logging.error(f"[DEBUG] download FAILED: {e}\n{traceback.format_exc()}")
+            raise
 
     return None
