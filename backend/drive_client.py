@@ -7,6 +7,7 @@ import os
 import io
 import re
 import tempfile
+import unicodedata
 from pathlib import Path
 from functools import lru_cache
 from typing import Optional
@@ -72,11 +73,17 @@ def _download_file(service, file_id: str, dest_path: str):
             _, done = downloader.next_chunk()
 
 
+def _nfc(s: str) -> str:
+    """유니코드 NFC 정규화 (한국어 자모 분리 등 방지)"""
+    return unicodedata.normalize('NFC', s)
+
+
 def _find_folder_by_name(service, parent_id: str, name: str) -> Optional[str]:
     """parent 폴더 안에서 이름으로 폴더 ID 찾기"""
     items = _list_folder(service, parent_id)
+    norm_name = _nfc(name)
     for item in items:
-        if item['name'] == name and item['mimeType'] == 'application/vnd.google-apps.folder':
+        if _nfc(item['name']) == norm_name and item['mimeType'] == 'application/vnd.google-apps.folder':
             return item['id']
     return None
 
@@ -84,8 +91,9 @@ def _find_folder_by_name(service, parent_id: str, name: str) -> Optional[str]:
 def _find_file_by_name(service, parent_id: str, name: str) -> Optional[str]:
     """parent 폴더 안에서 이름으로 파일 ID 찾기"""
     items = _list_folder(service, parent_id)
+    norm_name = _nfc(name)
     for item in items:
-        if item['name'] == name and item['mimeType'] != 'application/vnd.google-apps.folder':
+        if _nfc(item['name']) == norm_name and item['mimeType'] != 'application/vnd.google-apps.folder':
             return item['id']
     return None
 
@@ -96,7 +104,7 @@ def _get_db_ppt_folder_id(service) -> Optional[str]:
     root_items = _list_folder(service, ROOT_FOLDER_ID)
     db_folder_id = None
     for item in root_items:
-        if '자막 Database' in item['name'] and item['mimeType'] == 'application/vnd.google-apps.folder':
+        if _nfc('자막 Database') in _nfc(item['name']) and item['mimeType'] == 'application/vnd.google-apps.folder':
             db_folder_id = item['id']
             break
     if not db_folder_id:
@@ -104,7 +112,7 @@ def _get_db_ppt_folder_id(service) -> Optional[str]:
 
     db_items = _list_folder(service, db_folder_id)
     for item in db_items:
-        if item['name'] == '자막 Database (PPT)' and item['mimeType'] == 'application/vnd.google-apps.folder':
+        if _nfc(item['name']) == _nfc('자막 Database (PPT)') and item['mimeType'] == 'application/vnd.google-apps.folder':
             return item['id']
     return None
 
@@ -208,9 +216,11 @@ def download_template(part: str, dest_dir: str, custom_file_id: str = None) -> O
     # 기본: 루트 폴더에서 파일명으로 탐색
     default_name = DEFAULT_TEMPLATE_1BU if part == '1bu' else DEFAULT_TEMPLATE_2BU
     all_items = _list_folder(service, ROOT_FOLDER_ID)
-    import logging
-    logging.warning(f"[DEBUG] ROOT_FOLDER_ID={ROOT_FOLDER_ID}, items={[i['name'] for i in all_items]}")
-    file_id = next((i['id'] for i in all_items if i['name'] == default_name), None)
+    norm_default = _nfc(default_name)
+    file_id = next(
+        (i['id'] for i in all_items if _nfc(i['name']) == norm_default),
+        None
+    )
     if file_id:
         dest_path = str(Path(dest_dir) / default_name)
         _download_file(service, file_id, dest_path)
