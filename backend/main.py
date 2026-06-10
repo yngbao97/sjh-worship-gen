@@ -203,9 +203,19 @@ async def generate_ppt(
 
         # ── 설교 제목 ─────────────────────────────────
         if sermon_title.strip():
-            _log(f"📖 설교 제목: {sermon_title}")
+            # 성경봉독 선택값으로 레퍼런스 조합 (예: 창세기 3:16-18)
+            if bible_book_name.strip() and bible_chap.strip():
+                ref_parts = f"{bible_book_name.strip()} {bible_chap.strip()}"
+                if bible_start.strip():
+                    ref_parts += f":{bible_start.strip()}"
+                    if bible_end.strip() and bible_end.strip() != bible_start.strip():
+                        ref_parts += f"-{bible_end.strip()}"
+                sermon_ref_display = ref_parts
+            else:
+                sermon_ref_display = sermon_ref.strip()
+            _log(f"📖 설교 제목: {sermon_title} ({sermon_ref_display})")
             prs = Presentation(out_path)
-            ok = replace_sermon_title(prs, sermon_title.strip(), sermon_ref.strip())
+            ok = replace_sermon_title(prs, sermon_title.strip(), sermon_ref_display)
             prs.save(out_path)
             if not ok:
                 _log("   ⚠️ 설교 제목 슬라이드를 찾지 못했습니다.")

@@ -641,7 +641,6 @@
       const [respNum, setRespNum] = useState('');
       const [hymn2, setHymn2] = useState('');
       const [sermonTitle, setSermonTitle] = useState('');
-      const [sermonRef, setSermonRef] = useState('');
       const [bibleBook, setBibleBook] = useState(null);   // { vol, name }
       const [bibleChap, setBibleChap] = useState('');
       const [bibleStart, setBibleStart] = useState('');
@@ -699,7 +698,7 @@
         formData.append('resp_num', respNum);
         formData.append('hymn2', hymn2);
         formData.append('sermon_title', sermonTitle);
-        formData.append('sermon_ref', sermonRef);
+        formData.append('sermon_ref', '');
         formData.append('bible_vol', bibleBook ? bibleBook.vol : '');
         formData.append('bible_book_name', bibleBook ? bibleBook.name : '');
         formData.append('bible_chap', bibleChap);
@@ -760,7 +759,7 @@
         } finally {
           setGenerating(false);
         }
-      }, [generating, dateStr, hymn1, respNum, hymn2, sermonTitle, sermonRef,
+      }, [generating, dateStr, hymn1, respNum, hymn2, sermonTitle,
           bibleBook, bibleChap, bibleStart, bibleEnd, sermonSongTitle, sermonSongFile,
           choir1, choir2, choirLyrics1, choirLyrics2, praiseText,
           specialSong1, specialSong2, specialSongType1, specialSongType2,
@@ -781,7 +780,7 @@
           fd.append('resp_num', respNum);
           fd.append('hymn2', hymn2);
           fd.append('sermon_title', sermonTitle);
-          fd.append('sermon_ref', sermonRef);
+          fd.append('sermon_ref', '');
           fd.append('bible_vol', bibleBook ? bibleBook.vol : '');
           fd.append('bible_book_name', bibleBook ? bibleBook.name : '');
           fd.append('bible_chap', bibleChap);
@@ -839,7 +838,7 @@
         } finally {
           setGenerating(false);
         }
-      }, [generating, dateStr, hymn1, respNum, hymn2, sermonTitle, sermonRef,
+      }, [generating, dateStr, hymn1, respNum, hymn2, sermonTitle,
           bibleBook, bibleChap, bibleStart, bibleEnd, sermonSongTitle, sermonSongFile,
           choir1, choir2, choirLyrics1, choirLyrics2, praiseText,
           specialSong1, specialSong2, specialSongType1, specialSongType2,
@@ -974,11 +973,6 @@
               <Field label="설교 제목">
                 <input type="text" value={sermonTitle} onChange={e => setSermonTitle(e.target.value)}
                   placeholder="설교 제목을 입력하세요" />
-              </Field>
-
-              <Field label="설교 본문" hint="예: 벧후 1:1-7">
-                <input type="text" value={sermonRef} onChange={e => setSermonRef(e.target.value)}
-                  placeholder="예: 벧후 1:1-7" />
               </Field>
 
               <Field label="성경봉독 본문">
