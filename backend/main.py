@@ -76,7 +76,11 @@ async def generate_ppt(
     hymn2: str = Form(""),
     sermon_title: str = Form(""),
     sermon_ref: str = Form(""),
-    bible_label: str = Form(""),
+    bible_vol: str = Form(""),
+    bible_book_name: str = Form(""),
+    bible_chap: str = Form(""),
+    bible_start: str = Form(""),
+    bible_end: str = Form(""),
     sermon_song_title: str = Form(""),
     choir_lyrics_1bu: str = Form(""),
     choir_lyrics_2bu: str = Form(""),
@@ -182,10 +186,13 @@ async def generate_ppt(
                 _log(f"⚠️ 찬송가② {num}장 파일을 Drive에서 찾지 못했습니다.")
 
         # ── 성경 봉독 ─────────────────────────────────
-        if bible_label.strip():
-            _log(f"📜 성경봉독 조회 중: {bible_label.strip()}")
+        if bible_vol.strip() and bible_chap.strip():
+            chap = int(bible_chap.strip())
+            start = int(bible_start.strip()) if bible_start.strip() else None
+            end = int(bible_end.strip()) if bible_end.strip() else start
+            _log(f"📜 성경봉독 조회 중: {bible_book_name} {chap}장 {start}~{end}절")
             try:
-                verses = fetch_bible_text(bible_label.strip(), sermon_ref.strip())
+                verses = fetch_bible_text(bible_vol.strip(), bible_book_name.strip(), chap, start, end)
                 _log(f"   → Godpia에서 {len(verses)}절 수신")
                 prs = Presentation(out_path)
                 applied = apply_bible_text(prs, verses)
