@@ -575,7 +575,6 @@
       const [sermonTitle, setSermonTitle] = useState('');
       const [sermonRef, setSermonRef] = useState('');
       const [bibleLabel, setBibleLabel] = useState('');
-      const [bibleText, setBibleText] = useState('');
       const [sermonSongTitle, setSermonSongTitle] = useState('');
       const [sermonSongFile, setSermonSongFile] = useState(null);
       const [choir1, setChoir1] = useState('호산나찬양대');
@@ -631,7 +630,6 @@
         formData.append('sermon_title', sermonTitle);
         formData.append('sermon_ref', sermonRef);
         formData.append('bible_label', bibleLabel);
-        formData.append('bible_text', bibleText);
         formData.append('sermon_song_title', sermonSongTitle);
         formData.append('choir_lyrics_1bu', choirLyrics1);
         formData.append('choir_lyrics_2bu', choirLyrics2);
@@ -688,7 +686,7 @@
           setGenerating(false);
         }
       }, [generating, dateStr, hymn1, respNum, hymn2, sermonTitle, sermonRef,
-          bibleLabel, bibleText, sermonSongTitle, sermonSongFile,
+          bibleLabel, sermonSongTitle, sermonSongFile,
           choir1, choir2, choirLyrics1, choirLyrics2, praiseText,
           specialSong1, specialSong2, specialSongType1, specialSongType2,
           specialSongPerformer1, specialSongPerformer2, specialSongLyrics1, specialSongLyrics2,
@@ -764,7 +762,7 @@
           setGenerating(false);
         }
       }, [generating, dateStr, hymn1, respNum, hymn2, sermonTitle, sermonRef,
-          bibleLabel, bibleText, sermonSongTitle, sermonSongFile,
+          bibleLabel, sermonSongTitle, sermonSongFile,
           choir1, choir2, choirLyrics1, choirLyrics2, praiseText,
           specialSong1, specialSong2, specialSongType1, specialSongType2,
           specialSongPerformer1, specialSongPerformer2, specialSongLyrics1, specialSongLyrics2,
@@ -905,18 +903,9 @@
                   placeholder="예: 벧후 1:1-7" />
               </Field>
 
-              <Field label="봉독 구절 표기" hint="예: 룻기 3">
+              <Field label="봉독 구절 표기" hint="예: 창세기 3:16-18  /  설교 본문과 동일하면 생략 가능">
                 <input type="text" value={bibleLabel} onChange={e => setBibleLabel(e.target.value)}
-                  placeholder="예: 베드로후서 1" />
-              </Field>
-
-              <Field label="성경 봉독 본문" hint="약어로 구절 입력 (예: 창 3:16-18)">
-                <textarea
-                  value={bibleText}
-                  onChange={e => setBibleText(e.target.value)}
-                  placeholder={"예: 창 3:16-18\n예: 롬 8:1\n예: 요 3 (장 전체)"}
-                  rows={3}
-                />
+                  placeholder="예: 베드로후서 1:3-11" />
               </Field>
             </div>
 

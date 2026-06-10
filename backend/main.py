@@ -19,7 +19,6 @@ from worship_core import (
     find_hymn_blocks,
     find_responsory_block,
     replace_slides_zip,
-    parse_godpia_text,
     apply_bible_text,
     replace_sermon_title,
     apply_sermon_song,
@@ -78,7 +77,6 @@ async def generate_ppt(
     sermon_title: str = Form(""),
     sermon_ref: str = Form(""),
     bible_label: str = Form(""),
-    bible_text: str = Form(""),
     sermon_song_title: str = Form(""),
     choir_lyrics_1bu: str = Form(""),
     choir_lyrics_2bu: str = Form(""),
@@ -184,23 +182,17 @@ async def generate_ppt(
                 _log(f"⚠️ 찬송가② {num}장 파일을 Drive에서 찾지 못했습니다.")
 
         # ── 성경 봉독 ─────────────────────────────────
-        if bible_text.strip():
-            _log(f"📜 성경봉독 본문 가져오는 중: {bible_text.strip()}")
+        if bible_label.strip():
+            _log(f"📜 성경봉독 조회 중: {bible_label.strip()}")
             try:
-                verses = fetch_bible_text(bible_label.strip(), bible_text.strip())
+                verses = fetch_bible_text(bible_label.strip(), sermon_ref.strip())
                 _log(f"   → Godpia에서 {len(verses)}절 수신")
+                prs = Presentation(out_path)
+                applied = apply_bible_text(prs, verses)
+                prs.save(out_path)
+                _log(f"   → {applied}절 입력 완료")
             except Exception as e:
-                _log(f"   ⚠️ Godpia 자동 조회 실패 ({e}), 수동 입력 텍스트로 처리")
-                if bible_label.strip():
-                    book_chapter = bible_label.strip()
-                else:
-                    m = re.match(r'(.+?)\s+(\d+):\d+', sermon_ref.strip() if sermon_ref else "")
-                    book_chapter = f"{m.group(1)} {m.group(2)}" if m else sermon_ref.strip()
-                verses = parse_godpia_text(bible_text.strip(), book_chapter)
-            prs = Presentation(out_path)
-            applied = apply_bible_text(prs, verses)
-            prs.save(out_path)
-            _log(f"   → {applied}절 입력 완료")
+                _log(f"   ⚠️ Godpia 조회 실패: {e}")
 
         # ── 설교 제목 ─────────────────────────────────
         if sermon_title.strip():
