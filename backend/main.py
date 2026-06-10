@@ -19,7 +19,6 @@ from worship_core import (
     find_hymn_blocks,
     find_responsory_block,
     replace_slides_zip,
-    parse_godpia_text,
     apply_bible_text,
     replace_sermon_title,
     apply_sermon_song,
@@ -31,7 +30,7 @@ from worship_core import (
     delete_special_song,
 )
 from drive_client import download_hymn, download_responsory, download_template
-from godpia_client import fetch_bible_text
+from godpia_client import fetch_bible_text, book_name_to_abbr
 
 app = FastAPI(title="주일예배 PPT 생성기")
 
@@ -77,8 +76,11 @@ async def generate_ppt(
     hymn2: str = Form(""),
     sermon_title: str = Form(""),
     sermon_ref: str = Form(""),
-    bible_label: str = Form(""),
-    bible_text: str = Form(""),
+    bible_vol: str = Form(""),
+    bible_book_name: str = Form(""),
+    bible_chap: str = Form(""),
+    bible_start: str = Form(""),
+    bible_end: str = Form(""),
     sermon_song_title: str = Form(""),
     choir_lyrics_1bu: str = Form(""),
     choir_lyrics_2bu: str = Form(""),
@@ -184,29 +186,37 @@ async def generate_ppt(
                 _log(f"⚠️ 찬송가② {num}장 파일을 Drive에서 찾지 못했습니다.")
 
         # ── 성경 봉독 ─────────────────────────────────
-        if bible_text.strip():
-            _log(f"📜 성경봉독 본문 가져오는 중: {bible_text.strip()}")
+        if bible_vol.strip() and bible_chap.strip():
+            chap = int(bible_chap.strip())
+            start = int(bible_start.strip()) if bible_start.strip() else None
+            end = int(bible_end.strip()) if bible_end.strip() else start
+            _log(f"📜 성경봉독 조회 중: {bible_book_name} {chap}장 {start}~{end}절")
             try:
-                verses = fetch_bible_text(bible_label.strip(), bible_text.strip())
+                verses = fetch_bible_text(bible_vol.strip(), bible_book_name.strip(), chap, start, end)
                 _log(f"   → Godpia에서 {len(verses)}절 수신")
+                prs = Presentation(out_path)
+                applied = apply_bible_text(prs, verses)
+                prs.save(out_path)
+                _log(f"   → {applied}절 입력 완료")
             except Exception as e:
-                _log(f"   ⚠️ Godpia 자동 조회 실패 ({e}), 수동 입력 텍스트로 처리")
-                if bible_label.strip():
-                    book_chapter = bible_label.strip()
-                else:
-                    m = re.match(r'(.+?)\s+(\d+):\d+', sermon_ref.strip() if sermon_ref else "")
-                    book_chapter = f"{m.group(1)} {m.group(2)}" if m else sermon_ref.strip()
-                verses = parse_godpia_text(bible_text.strip(), book_chapter)
-            prs = Presentation(out_path)
-            applied = apply_bible_text(prs, verses)
-            prs.save(out_path)
-            _log(f"   → {applied}절 입력 완료")
+                _log(f"   ⚠️ Godpia 조회 실패: {e}")
 
         # ── 설교 제목 ─────────────────────────────────
         if sermon_title.strip():
-            _log(f"📖 설교 제목: {sermon_title}")
+            # 성경봉독 선택값으로 레퍼런스 조합 (예: 창세기 3:16-18)
+            if bible_book_name.strip() and bible_chap.strip():
+                abbr = book_name_to_abbr(bible_book_name.strip())
+                ref_parts = f"{abbr} {bible_chap.strip()}"
+                if bible_start.strip():
+                    ref_parts += f":{bible_start.strip()}"
+                    if bible_end.strip() and bible_end.strip() != bible_start.strip():
+                        ref_parts += f"-{bible_end.strip()}"
+                sermon_ref_display = ref_parts
+            else:
+                sermon_ref_display = sermon_ref.strip()
+            _log(f"📖 설교 제목: {sermon_title} ({sermon_ref_display})")
             prs = Presentation(out_path)
-            ok = replace_sermon_title(prs, sermon_title.strip(), sermon_ref.strip())
+            ok = replace_sermon_title(prs, sermon_title.strip(), sermon_ref_display)
             prs.save(out_path)
             if not ok:
                 _log("   ⚠️ 설교 제목 슬라이드를 찾지 못했습니다.")

@@ -16,6 +16,32 @@ GODPIA_HEADERS = {
     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
 }
 
+# 한국어 책 이름 → 약어 (설교제목 슬라이드용)
+BOOK_ABBR: dict[str, str] = {
+    '창세기': '창', '출애굽기': '출', '레위기': '레', '민수기': '민',
+    '신명기': '신', '여호수아': '수', '사사기': '삿', '룻기': '룻',
+    '사무엘상': '삼상', '사무엘하': '삼하', '열왕기상': '왕상', '열왕기하': '왕하',
+    '역대상': '대상', '역대하': '대하', '에스라': '스', '느헤미야': '느',
+    '에스더': '에', '욥기': '욥', '시편': '시', '잠언': '잠',
+    '전도서': '전', '아가': '아', '이사야': '사', '예레미야': '렘',
+    '예레미야애가': '애', '에스겔': '겔', '다니엘': '단', '호세아': '호',
+    '요엘': '욜', '아모스': '암', '오바댜': '옵', '요나': '욘',
+    '미가': '미', '나훔': '나', '하박국': '합', '스바냐': '습',
+    '학개': '학', '스가랴': '슥', '말라기': '말',
+    '마태복음': '마', '마가복음': '막', '누가복음': '눅', '요한복음': '요',
+    '사도행전': '행', '로마서': '롬', '고린도전서': '고전', '고린도후서': '고후',
+    '갈라디아서': '갈', '에베소서': '엡', '빌립보서': '빌', '골로새서': '골',
+    '데살로니가전서': '살전', '데살로니가후서': '살후', '디모데전서': '딤전',
+    '디모데후서': '딤후', '디도서': '딛', '빌레몬서': '몬', '히브리서': '히',
+    '야고보서': '약', '베드로전서': '벧전', '베드로후서': '벧후',
+    '요한일서': '요일', '요한이서': '요이', '요한삼서': '요삼',
+    '유다서': '유', '요한계시록': '계',
+}
+
+def book_name_to_abbr(book_name: str) -> str:
+    """책 전체 이름 → 약어. 매핑 없으면 원본 반환."""
+    return BOOK_ABBR.get(book_name.strip(), book_name.strip())
+
 # 한국어 책 이름 → Godpia vol 코드
 # 사용자가 직접 확인한 코드로 수정 가능
 BOOK_CODES: dict[str, str] = {
@@ -119,36 +145,29 @@ def fetch_bible_verses(vol: str, chap: int, ver: str = 'gae') -> list[dict]:
 
 
 def fetch_bible_text(
-    bible_label: str,
-    bible_ref: str,
+    vol: str,
+    book_name: str,
+    chap: int,
+    start_verse: Optional[int] = None,
+    end_verse: Optional[int] = None,
     ver: str = 'gae',
 ) -> list[dict]:
     """
-    봉독 구절 표기(bible_label)와 성경 본문 약어(bible_ref)로
-    Godpia에서 본문을 가져와 parse_godpia_text와 동일한 형식으로 반환.
+    Godpia에서 성경 본문을 가져와 apply_bible_text 호환 형식으로 반환.
 
-    bible_label: '창세기 3장 16-18절' (책 이름 확인용)
-    bible_ref:   '창 3:16-18'        (장/절 범위 파싱용)
+    vol:         Godpia vol 코드 (예: 'gen')
+    book_name:   슬라이드 레이블용 책 이름 (예: '창세기')
+    chap:        장 번호
+    start_verse: 시작 절 (None이면 장 전체)
+    end_verse:   마지막 절 (None이면 start_verse까지)
     반환: [{'label': '창세기 3:16', 'lines': ['본문텍스트']}, ...]
     """
-    # 책 코드: bible_label 우선, 없으면 bible_ref에서
-    vol = parse_bible_label(bible_label) if bible_label.strip() else None
-    ref_vol, chap, start_verse, end_verse = parse_bible_ref(bible_ref)
-    if not vol:
-        vol = ref_vol
-    if not vol or not chap:
-        raise ValueError(f"책 코드를 찾을 수 없습니다: label='{bible_label}', ref='{bible_ref}'")
-
-    # 책 이름 (슬라이드 레이블용): bible_label에서 책 이름 추출
-    book_display = re.split(r'\s*\d', bible_label.strip())[0].strip() if bible_label.strip() else bible_ref.split()[0]
-
     all_verses = fetch_bible_verses(vol, chap, ver)
 
-    # 절 범위 필터
     if start_verse is not None:
         all_verses = [v for v in all_verses if start_verse <= v['sec'] <= (end_verse or start_verse)]
 
     return [
-        {'label': f'{book_display} {chap}:{v["sec"]}', 'lines': [v['text']]}
+        {'label': f'{book_name} {chap}:{v["sec"]}', 'lines': [v['text']]}
         for v in all_verses
     ]
