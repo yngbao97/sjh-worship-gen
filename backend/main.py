@@ -31,6 +31,7 @@ from worship_core import (
     delete_special_song,
 )
 from drive_client import download_hymn, download_responsory, download_template
+from godpia_client import fetch_bible_text
 
 app = FastAPI(title="주일예배 PPT 생성기")
 
@@ -184,13 +185,18 @@ async def generate_ppt(
 
         # ── 성경 봉독 ─────────────────────────────────
         if bible_text.strip():
-            if bible_label.strip():
-                book_chapter = bible_label.strip()
-            else:
-                m = re.match(r'(.+?)\s+(\d+):\d+', sermon_ref.strip() if sermon_ref else "")
-                book_chapter = f"{m.group(1)} {m.group(2)}" if m else sermon_ref.strip()
-            _log(f"📜 성경봉독: {book_chapter}")
-            verses = parse_godpia_text(bible_text.strip(), book_chapter)
+            _log(f"📜 성경봉독 본문 가져오는 중: {bible_text.strip()}")
+            try:
+                verses = fetch_bible_text(bible_label.strip(), bible_text.strip())
+                _log(f"   → Godpia에서 {len(verses)}절 수신")
+            except Exception as e:
+                _log(f"   ⚠️ Godpia 자동 조회 실패 ({e}), 수동 입력 텍스트로 처리")
+                if bible_label.strip():
+                    book_chapter = bible_label.strip()
+                else:
+                    m = re.match(r'(.+?)\s+(\d+):\d+', sermon_ref.strip() if sermon_ref else "")
+                    book_chapter = f"{m.group(1)} {m.group(2)}" if m else sermon_ref.strip()
+                verses = parse_godpia_text(bible_text.strip(), book_chapter)
             prs = Presentation(out_path)
             applied = apply_bible_text(prs, verses)
             prs.save(out_path)
