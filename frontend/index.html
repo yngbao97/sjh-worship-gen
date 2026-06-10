@@ -910,12 +910,12 @@
                   placeholder="예: 베드로후서 1" />
               </Field>
 
-              <Field label="성경 봉독 본문" hint="Godpia에서 복사 붙여넣기">
+              <Field label="성경 봉독 본문" hint="약어로 구절 입력 (예: 창 3:16-18)">
                 <textarea
                   value={bibleText}
                   onChange={e => setBibleText(e.target.value)}
-                  placeholder={"1여기에 성경 본문을 붙여넣으세요\n2다음 절..."}
-                  rows={5}
+                  placeholder={"예: 창 3:16-18\n예: 롬 8:1\n예: 요 3 (장 전체)"}
+                  rows={3}
                 />
               </Field>
             </div>
