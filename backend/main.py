@@ -30,7 +30,7 @@ from worship_core import (
     delete_special_song,
 )
 from drive_client import download_hymn, download_responsory, download_template
-from godpia_client import fetch_bible_text
+from godpia_client import fetch_bible_text, book_name_to_abbr
 
 app = FastAPI(title="주일예배 PPT 생성기")
 
@@ -205,7 +205,8 @@ async def generate_ppt(
         if sermon_title.strip():
             # 성경봉독 선택값으로 레퍼런스 조합 (예: 창세기 3:16-18)
             if bible_book_name.strip() and bible_chap.strip():
-                ref_parts = f"{bible_book_name.strip()} {bible_chap.strip()}"
+                abbr = book_name_to_abbr(bible_book_name.strip())
+                ref_parts = f"{abbr} {bible_chap.strip()}"
                 if bible_start.strip():
                     ref_parts += f":{bible_start.strip()}"
                     if bible_end.strip() and bible_end.strip() != bible_start.strip():
