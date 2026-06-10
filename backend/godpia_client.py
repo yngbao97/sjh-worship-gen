@@ -124,28 +124,23 @@ def fetch_bible_text(
     ver: str = 'gae',
 ) -> list[dict]:
     """
-    봉독 구절 표기(bible_label)와 설교 본문(sermon_ref)으로
+    책 원제목(bible_label)과 설교 본문(sermon_ref)으로
     Godpia에서 본문을 가져와 parse_godpia_text와 동일한 형식으로 반환.
 
-    bible_label: '창세기 3장 16-18절' 또는 '창세기 3:16-18' (책 이름 + 선택적 장/절)
-    sermon_ref:  '창 3:16-18' (bible_label에 장/절 없을 때 fallback)
+    bible_label: '창세기' (책 이름만, vol 코드 매핑 + 슬라이드 레이블용)
+    sermon_ref:  '창 3:16-18' (장/절 범위 파싱용)
     반환: [{'label': '창세기 3:16', 'lines': ['본문텍스트']}, ...]
     """
-    # 책 코드: bible_label에서 추출
     vol = parse_bible_label(bible_label) if bible_label.strip() else None
-
-    # 장/절 범위: bible_label 우선, 없으면 sermon_ref에서
-    _, chap, start_verse, end_verse = parse_bible_ref(bible_label)
-    if not chap:
-        ref_vol, chap, start_verse, end_verse = parse_bible_ref(sermon_ref)
-        if not vol:
-            vol = ref_vol
+    _, chap, start_verse, end_verse = parse_bible_ref(sermon_ref)
+    if not vol:
+        ref_vol, _, _, _ = parse_bible_ref(sermon_ref)
+        vol = ref_vol
 
     if not vol or not chap:
         raise ValueError(f"책/장 정보를 찾을 수 없습니다: label='{bible_label}', sermon_ref='{sermon_ref}'")
 
-    # 책 이름 (슬라이드 레이블용)
-    book_display = re.split(r'\s*\d', bible_label.strip())[0].strip() if bible_label.strip() else sermon_ref.split()[0]
+    book_display = bible_label.strip() if bible_label.strip() else sermon_ref.split()[0]
 
     all_verses = fetch_bible_verses(vol, chap, ver)
 
