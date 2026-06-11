@@ -4,6 +4,7 @@
 
 import os
 import re
+import json
 import shutil
 import tempfile
 from pathlib import Path
@@ -76,11 +77,7 @@ async def generate_ppt(
     hymn2: str = Form(""),
     sermon_title: str = Form(""),
     sermon_ref: str = Form(""),
-    bible_vol: str = Form(""),
-    bible_book_name: str = Form(""),
-    bible_chap: str = Form(""),
-    bible_start: str = Form(""),
-    bible_end: str = Form(""),
+    bible_ranges: str = Form("[]"),
     sermon_song_title: str = Form(""),
     choir_lyrics_1bu: str = Form(""),
     choir_lyrics_2bu: str = Form(""),
@@ -186,32 +183,46 @@ async def generate_ppt(
                 _log(f"⚠️ 찬송가② {num}장 파일을 Drive에서 찾지 못했습니다.")
 
         # ── 성경 봉독 ─────────────────────────────────
-        if bible_vol.strip() and bible_chap.strip():
-            chap = int(bible_chap.strip())
-            start = int(bible_start.strip()) if bible_start.strip() else None
-            end = int(bible_end.strip()) if bible_end.strip() else start
-            _log(f"📜 성경봉독 조회 중: {bible_book_name} {chap}장 {start}~{end}절")
-            try:
-                verses = fetch_bible_text(bible_vol.strip(), bible_book_name.strip(), chap, start, end)
-                _log(f"   → Godpia에서 {len(verses)}절 수신")
+        # ── 성경 봉독 ─────────────────────────────────
+        parsed_ranges = json.loads(bible_ranges) if bible_ranges.strip() else []
+        valid_ranges = [r for r in parsed_ranges if r.get('book') and r.get('chap')]
+        if valid_ranges:
+            all_verses = []
+            for r in valid_ranges:
+                vol       = r['book']['vol']
+                book_name = r['book']['name']
+                chap      = int(r['chap'])
+                start     = int(r['start']) if r.get('start') else None
+                end       = int(r['end'])   if r.get('end')   else start
+                _log(f"📜 성경봉독 조회: {book_name} {chap}장 {start or ''}~{end or ''}절")
+                try:
+                    verses = fetch_bible_text(vol, book_name, chap, start, end)
+                    all_verses.extend(verses)
+                    _log(f"   → {len(verses)}절 수신")
+                except Exception as e:
+                    _log(f"   ⚠️ Godpia 조회 실패: {e}")
+            if all_verses:
                 prs = Presentation(out_path)
-                applied = apply_bible_text(prs, verses)
+                applied = apply_bible_text(prs, all_verses)
                 prs.save(out_path)
-                _log(f"   → {applied}절 입력 완료")
-            except Exception as e:
-                _log(f"   ⚠️ Godpia 조회 실패: {e}")
+                _log(f"   → 총 {applied}절 입력 완료")
 
         # ── 설교 제목 ─────────────────────────────────
         if sermon_title.strip():
-            # 성경봉독 선택값으로 레퍼런스 조합 (예: 창세기 3:16-18)
-            if bible_book_name.strip() and bible_chap.strip():
-                abbr = book_name_to_abbr(bible_book_name.strip())
-                ref_parts = f"{abbr} {bible_chap.strip()}"
-                if bible_start.strip():
-                    ref_parts += f":{bible_start.strip()}"
-                    if bible_end.strip() and bible_end.strip() != bible_start.strip():
-                        ref_parts += f"-{bible_end.strip()}"
-                sermon_ref_display = ref_parts
+            if valid_ranges:
+                ref_parts = []
+                for r in valid_ranges:
+                    abbr  = book_name_to_abbr(r['book']['name'])
+                    chap  = r['chap']
+                    start = r.get('start', '')
+                    end   = r.get('end', '')
+                    part  = f"{abbr} {chap}"
+                    if start:
+                        part += f":{start}"
+                        if end and end != start:
+                            part += f"-{end}"
+                    ref_parts.append(part)
+                sermon_ref_display = '; '.join(ref_parts)
             else:
                 sermon_ref_display = sermon_ref.strip()
             _log(f"📖 설교 제목: {sermon_title} ({sermon_ref_display})")
