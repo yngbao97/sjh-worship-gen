@@ -218,7 +218,7 @@
       <div class="step-num">3</div>
       <div class="step-content">
         <div class="step-title">예배 순서 입력 (1·2부 공통)</div>
-        <div class="step-desc">찬송가 번호, 교독문 번호, 설교 제목·본문, 성경 봉독 본문을 입력합니다.</div>
+        <div class="step-desc">찬송가 번호, 교독문 번호, 설교 제목, 성경봉독 책·장·절을 입력합니다.</div>
       </div>
     </div>
 
@@ -267,9 +267,17 @@
       <tr><td>찬송가 ① ②</td><td>숫자만 입력<br><span style="font-size:12px;color:#9a7a60">예: 93, 453</span></td><td><span class="badge badge-green">✅ 슬라이드 자동 삽입</span></td></tr>
       <tr><td>교독문</td><td>숫자만 입력<br><span style="font-size:12px;color:#9a7a60">예: 1</span></td><td><span class="badge badge-green">✅ 슬라이드 자동 삽입</span></td></tr>
       <tr><td>설교 제목</td><td>전달받은 설교 제목 입력</td><td><span class="badge badge-green">✅ 자동 치환</span></td></tr>
-      <tr><td>설교 본문 범위</td><td>약어로 입력<br><span style="font-size:12px;color:#9a7a60">예: 벧후 1:1-7</span></td><td><span class="badge badge-green">✅ 자동 치환</span></td></tr>
-      <tr><td>봉독 구절 표기</td><td>본문 정식명칭 및 장 입력<br><span style="font-size:12px;color:#9a7a60">예: 베드로후서 1</span></td><td><span class="badge badge-green">✅ 자동 치환</span></td></tr>
-      <tr><td>성경 봉독 본문</td><td>Godpia에서 구절 번호 포함 전체 복사 후 붙여넣기</td><td><span class="badge badge-green">✅ 구절별 슬라이드 자동 생성</span></td></tr>
+      <tr>
+        <td>성경봉독 본문</td>
+        <td>
+          ① <strong>책 이름</strong> 검색창에 입력 → 목록에서 선택<br>
+          ② <strong>장</strong> 숫자 입력<br>
+          ③ <strong>시작절 ~ 마지막절</strong> 숫자 입력<br>
+          <span style="font-size:12px;color:#9a7a60">예: 창세기 / 3장 / 16 ~ 18절</span><br>
+          <span style="font-size:12px;color:#9a7a60">설교 제목 슬라이드: 창 3:16-18 &nbsp;|&nbsp; 봉독 자막: 창세기 3:16 …</span>
+        </td>
+        <td><span class="badge badge-green">✅ Godpia 자동 조회 후 슬라이드 생성</span></td>
+      </tr>
       <tr><td>설교찬양 제목</td><td>곡 제목 입력</td><td><span class="badge badge-green">✅ 자동 치환</span></td></tr>
       <tr><td>설교찬양 악보</td><td>.ppt 파일 업로드 (드래그&드롭 또는 클릭)</td><td><span class="badge badge-green">✅ 슬라이드 자동 삽입</span></td></tr>
       <tr><td>특송</td><td>1부/2부 각각 체크 → 유형·특송자·가사 입력</td><td><span class="badge badge-green">✅ 자동 삽입 / 없으면 구역 삭제</span></td></tr>
@@ -318,11 +326,14 @@
 가사 또 다음 줄</code></pre>
     <div class="notice">💡 특송에서 가사 없이 <code>[곡명]</code>만 입력하면 제목 슬라이드만 생성됩니다.</div>
 
-    <h3>성경 봉독 본문</h3>
-    <p style="font-size:13.5px;color:var(--text-muted);margin-bottom:6px">Godpia에서 구절 번호 포함 전체 복사 후 그대로 붙여넣기</p>
-    <pre><code>1여호와는 나의 목자시니 내게 부족함이 없으리로다
-2그가 나를 푸른 풀밭에 누이시며 쉴 만한 물 가로 인도하시는도다
-3내 영혼을 소생시키시고 자기 이름을 위하여 의의 길로 인도하시는도다</code></pre>
+    <h3>성경봉독 본문</h3>
+    <p style="font-size:13.5px;color:var(--text-muted);margin-bottom:6px">
+      책 이름을 검색창에 입력해 선택하고, 장·시작절·마지막절을 숫자로 입력하면 Godpia에서 본문을 자동으로 가져옵니다.
+    </p>
+    <div class="notice">
+      💡 <strong>책 이름</strong>은 검색창에 일부만 입력해도 목록이 필터링됩니다 (예: "요한" 입력 → 요한복음·요한일서 등 표시).<br>
+      마지막절을 비우면 시작절 한 절만, 장만 입력하면 해당 장 전체를 가져옵니다.
+    </div>
 
     <h3>특송자 입력</h3>
     <p style="font-size:13.5px;color:var(--text-muted);margin-bottom:6px">
@@ -360,7 +371,7 @@
               <li style="font-size:12.5px;margin-bottom:4px"><strong>Praise&amp;Worship</strong> 사이트에서 <strong>Wide 버전</strong> 다운로드</li>
             </ol>
           </li>
-          <li>생성된 전체 파일 검토 후 다듬기<br><span style="font-size:12px;color:var(--text-muted)">찬양팀 가사, 성경 본문 등</span></li>
+          <li>생성된 전체 파일 검토 후 다듬기<br><span style="font-size:12px;color:var(--text-muted)">찬양팀 가사, 성경봉독 자막 등</span></li>
           <li>설교 자막 직접 제작<br><span style="font-size:12px;color:var(--text-muted)">원고 보고 직접 작성</span></li>
         </ul>
       </div>
@@ -409,6 +420,14 @@
       <div class="qa-a">
         → 로그 창의 메시지를 확인하세요<br>
         → 해당 슬라이드만 수동으로 수정하시면 됩니다
+      </div>
+    </div>
+    <div class="qa">
+      <div class="qa-q">Q. 성경봉독 본문이 생성되지 않아요</div>
+      <div class="qa-a">
+        → 책 이름이 목록에서 선택되었는지 확인하세요 (직접 타이핑만으로는 적용되지 않습니다)<br>
+        → 장 번호가 입력되어 있는지 확인하세요<br>
+        → 로그 창에서 "Godpia 조회 실패" 메시지 여부를 확인하세요
       </div>
     </div>
     <div class="qa">
