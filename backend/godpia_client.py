@@ -139,7 +139,7 @@ def fetch_bible_verses(vol: str, chap: int, ver: str = 'gae') -> list[dict]:
             continue
         # dic-link span 텍스트 포함, 불필요한 공백 정리
         text = cont.get_text(separator='')
-        text = re.sub(r'[ \t]*\n[ \t]*', ' ', text)  # 줄바꿈 기반 공백만 단일 공백으로
+        text = re.sub(r'\s*\n\s*', '', text)  # HTML 줄바꿈+들여쓰기 제거 (실제 공백 아님)
         text = re.sub(r'  +', ' ', text).strip()
         verses.append({'sec': int(sec_attr), 'text': text})
     return verses
