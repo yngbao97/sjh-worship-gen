@@ -4,6 +4,7 @@
 
 import os
 import re
+import json
 import shutil
 import tempfile
 from pathlib import Path
@@ -19,7 +20,6 @@ from worship_core import (
     find_hymn_blocks,
     find_responsory_block,
     replace_slides_zip,
-    parse_godpia_text,
     apply_bible_text,
     replace_sermon_title,
     apply_sermon_song,
@@ -31,6 +31,7 @@ from worship_core import (
     delete_special_song,
 )
 from drive_client import download_hymn, download_responsory, download_template
+from godpia_client import fetch_bible_text, book_name_to_abbr
 
 app = FastAPI(title="주일예배 PPT 생성기")
 
@@ -76,8 +77,7 @@ async def generate_ppt(
     hymn2: str = Form(""),
     sermon_title: str = Form(""),
     sermon_ref: str = Form(""),
-    bible_label: str = Form(""),
-    bible_text: str = Form(""),
+    bible_ranges: str = Form("[]"),
     sermon_song_title: str = Form(""),
     choir_lyrics_1bu: str = Form(""),
     choir_lyrics_2bu: str = Form(""),
@@ -183,24 +183,58 @@ async def generate_ppt(
                 _log(f"⚠️ 찬송가② {num}장 파일을 Drive에서 찾지 못했습니다.")
 
         # ── 성경 봉독 ─────────────────────────────────
-        if bible_text.strip():
-            if bible_label.strip():
-                book_chapter = bible_label.strip()
-            else:
-                m = re.match(r'(.+?)\s+(\d+):\d+', sermon_ref.strip() if sermon_ref else "")
-                book_chapter = f"{m.group(1)} {m.group(2)}" if m else sermon_ref.strip()
-            _log(f"📜 성경봉독: {book_chapter}")
-            verses = parse_godpia_text(bible_text.strip(), book_chapter)
-            prs = Presentation(out_path)
-            applied = apply_bible_text(prs, verses)
-            prs.save(out_path)
-            _log(f"   → {applied}절 입력 완료")
+        # ── 성경 봉독 ─────────────────────────────────
+        parsed_ranges = json.loads(bible_ranges) if bible_ranges.strip() else []
+        valid_ranges = [r for r in parsed_ranges if r.get('book') and r.get('chap')]
+        if valid_ranges:
+            all_verses = []
+            for r in valid_ranges:
+                vol       = r['book']['vol']
+                book_name = r['book']['name']
+                chap      = int(r['chap'])
+                start     = int(r['start']) if r.get('start') else None
+                end       = int(r['end'])   if r.get('end')   else start
+                _log(f"📜 성경봉독 조회: {book_name} {chap}장 {start or ''}~{end or ''}절")
+                try:
+                    verses = fetch_bible_text(vol, book_name, chap, start, end)
+                    all_verses.extend(verses)
+                    _log(f"   → {len(verses)}절 수신")
+                except Exception as e:
+                    _log(f"   ⚠️ Godpia 조회 실패: {e}")
+            if all_verses:
+                prs = Presentation(out_path)
+                applied = apply_bible_text(prs, all_verses)
+                prs.save(out_path)
+                _log(f"   → 총 {applied}절 입력 완료")
 
         # ── 설교 제목 ─────────────────────────────────
         if sermon_title.strip():
-            _log(f"📖 설교 제목: {sermon_title}")
+            if valid_ranges:
+                ref_parts = []
+                prev_abbr = None
+                prev_chap = None
+                for r in valid_ranges:
+                    abbr  = book_name_to_abbr(r['book']['name'])
+                    chap  = str(r['chap'])
+                    start = str(r.get('start', ''))
+                    end   = str(r.get('end', ''))
+                    verse = f"{start}-{end}" if end and end != start else start
+                    if abbr != prev_abbr:
+                        part = f"{abbr} {chap}"
+                        part += f":{verse}" if verse else ""
+                    elif chap != prev_chap:
+                        part = f"{chap}:{verse}" if verse else chap
+                    else:
+                        part = verse if verse else chap
+                    ref_parts.append(part)
+                    prev_abbr = abbr
+                    prev_chap = chap
+                sermon_ref_display = ', '.join(ref_parts)
+            else:
+                sermon_ref_display = sermon_ref.strip()
+            _log(f"📖 설교 제목: {sermon_title} ({sermon_ref_display})")
             prs = Presentation(out_path)
-            ok = replace_sermon_title(prs, sermon_title.strip(), sermon_ref.strip())
+            ok = replace_sermon_title(prs, sermon_title.strip(), sermon_ref_display)
             prs.save(out_path)
             if not ok:
                 _log("   ⚠️ 설교 제목 슬라이드를 찾지 못했습니다.")
