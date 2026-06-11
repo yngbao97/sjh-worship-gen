@@ -211,18 +211,25 @@ async def generate_ppt(
         if sermon_title.strip():
             if valid_ranges:
                 ref_parts = []
+                prev_abbr = None
+                prev_chap = None
                 for r in valid_ranges:
                     abbr  = book_name_to_abbr(r['book']['name'])
-                    chap  = r['chap']
-                    start = r.get('start', '')
-                    end   = r.get('end', '')
-                    part  = f"{abbr} {chap}"
-                    if start:
-                        part += f":{start}"
-                        if end and end != start:
-                            part += f"-{end}"
+                    chap  = str(r['chap'])
+                    start = str(r.get('start', ''))
+                    end   = str(r.get('end', ''))
+                    verse = f"{start}-{end}" if end and end != start else start
+                    if abbr != prev_abbr:
+                        part = f"{abbr} {chap}"
+                        part += f":{verse}" if verse else ""
+                    elif chap != prev_chap:
+                        part = f"{chap}:{verse}" if verse else chap
+                    else:
+                        part = verse if verse else chap
                     ref_parts.append(part)
-                sermon_ref_display = '; '.join(ref_parts)
+                    prev_abbr = abbr
+                    prev_chap = chap
+                sermon_ref_display = ', '.join(ref_parts)
             else:
                 sermon_ref_display = sermon_ref.strip()
             _log(f"📖 설교 제목: {sermon_title} ({sermon_ref_display})")
