@@ -645,10 +645,12 @@
       const [respNum, setRespNum] = useState('');
       const [hymn2, setHymn2] = useState('');
       const [sermonTitle, setSermonTitle] = useState('');
-      const [bibleBook, setBibleBook] = useState(null);   // { vol, name }
-      const [bibleChap, setBibleChap] = useState('');
-      const [bibleStart, setBibleStart] = useState('');
-      const [bibleEnd, setBibleEnd] = useState('');
+      const EMPTY_RANGE = () => ({ book: null, chap: '', start: '', end: '' });
+      const [bibleRanges, setBibleRanges] = useState([EMPTY_RANGE()]);
+      const updateRange = (i, patch) =>
+        setBibleRanges(prev => prev.map((r, idx) => idx === i ? { ...r, ...patch } : r));
+      const addRange    = () => setBibleRanges(prev => [...prev, EMPTY_RANGE()]);
+      const removeRange = (i) => setBibleRanges(prev => prev.filter((_, idx) => idx !== i));
       const [sermonSongTitle, setSermonSongTitle] = useState('');
       const [sermonSongFile, setSermonSongFile] = useState(null);
       const [choir1, setChoir1] = useState('호산나찬양대');
@@ -703,11 +705,7 @@
         formData.append('hymn2', hymn2);
         formData.append('sermon_title', sermonTitle);
         formData.append('sermon_ref', '');
-        formData.append('bible_vol', bibleBook ? bibleBook.vol : '');
-        formData.append('bible_book_name', bibleBook ? bibleBook.name : '');
-        formData.append('bible_chap', bibleChap);
-        formData.append('bible_start', bibleStart);
-        formData.append('bible_end', bibleEnd);
+        formData.append('bible_ranges', JSON.stringify(bibleRanges));
         formData.append('sermon_song_title', sermonSongTitle);
         formData.append('choir_lyrics_1bu', choirLyrics1);
         formData.append('choir_lyrics_2bu', choirLyrics2);
@@ -764,7 +762,7 @@
           setGenerating(false);
         }
       }, [generating, dateStr, hymn1, respNum, hymn2, sermonTitle,
-          bibleBook, bibleChap, bibleStart, bibleEnd, sermonSongTitle, sermonSongFile,
+          bibleRanges, sermonSongTitle, sermonSongFile,
           choir1, choir2, choirLyrics1, choirLyrics2, praiseText,
           specialSong1, specialSong2, specialSongType1, specialSongType2,
           specialSongPerformer1, specialSongPerformer2, specialSongLyrics1, specialSongLyrics2,
@@ -785,11 +783,7 @@
           fd.append('hymn2', hymn2);
           fd.append('sermon_title', sermonTitle);
           fd.append('sermon_ref', '');
-          fd.append('bible_vol', bibleBook ? bibleBook.vol : '');
-          fd.append('bible_book_name', bibleBook ? bibleBook.name : '');
-          fd.append('bible_chap', bibleChap);
-          fd.append('bible_start', bibleStart);
-          fd.append('bible_end', bibleEnd);
+          fd.append('bible_ranges', JSON.stringify(bibleRanges));
           fd.append('sermon_song_title', sermonSongTitle);
           fd.append('choir_lyrics_1bu', choirLyrics1);
           fd.append('choir_lyrics_2bu', choirLyrics2);
@@ -843,7 +837,7 @@
           setGenerating(false);
         }
       }, [generating, dateStr, hymn1, respNum, hymn2, sermonTitle,
-          bibleBook, bibleChap, bibleStart, bibleEnd, sermonSongTitle, sermonSongFile,
+          bibleRanges, sermonSongTitle, sermonSongFile,
           choir1, choir2, choirLyrics1, choirLyrics2, praiseText,
           specialSong1, specialSong2, specialSongType1, specialSongType2,
           specialSongPerformer1, specialSongPerformer2, specialSongLyrics1, specialSongLyrics2,
@@ -980,27 +974,40 @@
               </Field>
 
               <Field label="성경봉독 본문">
-                <BookSearch value={bibleBook} onChange={setBibleBook} />
-                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '8px' }}>
-                  <input
-                    type="number" min="1" placeholder="장"
-                    value={bibleChap} onChange={e => setBibleChap(e.target.value)}
-                    style={{ width: '64px' }}
-                  />
-                  <span style={{ color: 'var(--text-muted)', fontSize: '13px' }}>장</span>
-                  <input
-                    type="number" min="1" placeholder="시작절"
-                    value={bibleStart} onChange={e => setBibleStart(e.target.value)}
-                    style={{ width: '72px' }}
-                  />
-                  <span style={{ color: 'var(--text-muted)', fontWeight: 'bold' }}>~</span>
-                  <input
-                    type="number" min="1" placeholder="마지막절"
-                    value={bibleEnd} onChange={e => setBibleEnd(e.target.value)}
-                    style={{ width: '72px' }}
-                  />
-                  <span style={{ color: 'var(--text-muted)', fontSize: '13px' }}>절</span>
-                </div>
+                {bibleRanges.map((r, i) => (
+                  <div key={i} style={{ marginBottom: '10px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <div style={{ flex: 1 }}>
+                        <BookSearch value={r.book} onChange={book => updateRange(i, { book })} />
+                      </div>
+                      {bibleRanges.length > 1 && (
+                        <button type="button" onClick={() => removeRange(i)}
+                          style={{ background: 'none', border: '1px solid var(--border)', borderRadius: '4px',
+                            color: 'var(--text-muted)', cursor: 'pointer', padding: '4px 8px', fontSize: '13px', flexShrink: 0 }}>×</button>
+                      )}
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '6px' }}>
+                      <input type="number" min="1" placeholder="장"
+                        value={r.chap} onChange={e => updateRange(i, { chap: e.target.value })}
+                        style={{ width: '64px' }} />
+                      <span style={{ color: 'var(--text-muted)', fontSize: '13px' }}>장</span>
+                      <input type="number" min="1" placeholder="시작절"
+                        value={r.start} onChange={e => updateRange(i, { start: e.target.value })}
+                        style={{ width: '72px' }} />
+                      <span style={{ color: 'var(--text-muted)', fontWeight: 'bold' }}>~</span>
+                      <input type="number" min="1" placeholder="마지막절"
+                        value={r.end} onChange={e => updateRange(i, { end: e.target.value })}
+                        style={{ width: '72px' }} />
+                      <span style={{ color: 'var(--text-muted)', fontSize: '13px' }}>절</span>
+                    </div>
+                  </div>
+                ))}
+                <button type="button" onClick={addRange}
+                  style={{ marginTop: '4px', background: 'none', border: '1px dashed var(--border)',
+                    borderRadius: '6px', color: 'var(--text-muted)', cursor: 'pointer',
+                    padding: '6px 14px', fontSize: '13px', width: '100%' }}>
+                  + 범위 추가
+                </button>
               </Field>
             </div>
 
