@@ -138,7 +138,7 @@ def fetch_bible_verses(vol: str, chap: int, ver: str = 'gae') -> list[dict]:
         if not cont:
             continue
         # dic-link span 텍스트 포함, 불필요한 공백 정리
-        text = cont.get_text(separator='', strip=True)
+        text = cont.get_text(separator=' ', strip=True)
         text = re.sub(r'\s+', ' ', text).strip()
         verses.append({'sec': int(sec_attr), 'text': text})
     return verses
