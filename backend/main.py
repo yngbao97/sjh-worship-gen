@@ -220,13 +220,13 @@ async def generate_ppt(
                     end   = str(r.get('end', ''))
                     verse = f"{start}-{end}" if end and end != start else start
                     if abbr != prev_abbr:
-                        part = f"{abbr} {chap}"
-                        part += f":{verse}" if verse else ""
+                        ref_chunk = f"{abbr} {chap}"
+                        ref_chunk += f":{verse}" if verse else ""
                     elif chap != prev_chap:
-                        part = f"{chap}:{verse}" if verse else chap
+                        ref_chunk = f"{chap}:{verse}" if verse else chap
                     else:
-                        part = verse if verse else chap
-                    ref_parts.append(part)
+                        ref_chunk = verse if verse else chap
+                    ref_parts.append(ref_chunk)
                     prev_abbr = abbr
                     prev_chap = chap
                 sermon_ref_display = ', '.join(ref_parts)
