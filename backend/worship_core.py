@@ -1059,6 +1059,11 @@ def _build_praise_src_pptx(template_path: str, songs: list[dict]) -> str:
                    if _lyric2_idx is not None else None)
     lyric2_alt_xml = etree.tostring(_lyric2_alt).decode() if _lyric2_alt is not None else None
 
+    # 필요한 정보는 모두 추출했으므로 원본 템플릿 Presentation 메모리 해제
+    del prs, sep_slide, lyric_slide
+    import gc as _gc2
+    _gc2.collect()
+
     def _add(spTree_tmpl, rels, with_wipe, is_sep=False):
         sl = blank_prs.slides.add_slide(layout_sep if is_sep else layout_lyric)
         sp = sl.shapes._spTree
@@ -1141,6 +1146,8 @@ def _build_praise_src_pptx(template_path: str, songs: list[dict]) -> str:
 
     tmp = _tmp.mktemp(suffix='.pptx')
     blank_prs.save(tmp)
+    del blank_prs
+    _gc2.collect()
     try: _os2.unlink(blank_path)
     except: pass
     # save() 시 원본 슬라이드와 새 슬라이드가 중복 저장됨 → 중복 제거
@@ -1154,14 +1161,17 @@ def apply_praise_lyrics(out_path: str, songs: list[dict]) -> int:
     out_path: 저장할 파일 경로 (in-place 수정)
     반환: 생성된 가사 슬라이드 수
     """
-    import warnings as _w, os as _os
+    import warnings as _w, os as _os, gc as _gc
 
     prs_check = Presentation(out_path)
     start, end = get_praise_region(prs_check)
+    del prs_check
+    _gc.collect()
     if start is None or not songs:
         return 0
 
     src_path = _build_praise_src_pptx(out_path, songs)
+    _gc.collect()
     if src_path is None:
         return 0
 
