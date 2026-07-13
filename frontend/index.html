@@ -772,7 +772,7 @@
         if (generating) return;
         setGenerating(true);
         setModalStatus('loading');
-        setLogs(['🚀 1부 & 2부 동시 생성 시작...']);
+        setLogs(['🚀 1부 → 2부 순차 생성 시작...']);
 
         const makeFD = (part) => {
           const fd = new FormData();
@@ -804,13 +804,10 @@
         };
 
         try {
-          const [r1, r2] = await Promise.all([
-            fetch(`${API_BASE}/generate`, { method: 'POST', body: makeFD('1bu') }),
-            fetch(`${API_BASE}/generate`, { method: 'POST', body: makeFD('2bu') }),
-          ]);
-
           const newLogs = [];
-          for (const [resp, label] of [[r1, '1부'], [r2, '2부']]) {
+          for (const [partKey, label] of [['1bu', '1부'], ['2bu', '2부']]) {
+            setLogs(prev => [...prev, `⏳ ${label} 생성 중...`]);
+            const resp = await fetch(`${API_BASE}/generate`, { method: 'POST', body: makeFD(partKey) });
             const data = await resp.json();
             if (!resp.ok) {
               newLogs.push(`❌ ${label} 오류: ${data.detail || resp.statusText}`);

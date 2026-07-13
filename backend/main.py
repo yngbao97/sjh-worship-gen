@@ -4,6 +4,7 @@
 
 import os
 import re
+import gc
 import json
 import shutil
 import tempfile
@@ -127,6 +128,7 @@ async def generate_ppt(
             prs = Presentation(out_path)
             _replace_date_in_prs(prs, date_str)
             prs.save(out_path)
+            del prs; gc.collect()
 
         # ── 찬송가① 교체 ─────────────────────────────
         if hymn1.strip():
@@ -137,6 +139,7 @@ async def generate_ppt(
                 _log(f"🎵 찬송가① {num}장 교체 중...")
                 prs = Presentation(out_path)
                 blocks = find_hymn_blocks(prs)
+                del prs; gc.collect()
                 if blocks:
                     s, c = blocks[0]
                     replace_slides_zip(out_path, s, c, hymn1_path, out_path)
@@ -155,6 +158,7 @@ async def generate_ppt(
                 _log(f"📋 교독문 {num}번 교체 중...")
                 prs = Presentation(out_path)
                 block = find_responsory_block(prs)
+                del prs; gc.collect()
                 if block:
                     s, c = block
                     replace_slides_zip(out_path, s, c, resp_path, out_path)
@@ -173,6 +177,7 @@ async def generate_ppt(
                 _log(f"🎵 찬송가② {num}장 교체 중...")
                 prs = Presentation(out_path)
                 blocks = find_hymn_blocks(prs)
+                del prs; gc.collect()
                 if len(blocks) >= 2:
                     s, c = blocks[1]
                     replace_slides_zip(out_path, s, c, hymn2_path, out_path)
@@ -182,7 +187,6 @@ async def generate_ppt(
             else:
                 _log(f"⚠️ 찬송가② {num}장 파일을 Drive에서 찾지 못했습니다.")
 
-        # ── 성경 봉독 ─────────────────────────────────
         # ── 성경 봉독 ─────────────────────────────────
         parsed_ranges = json.loads(bible_ranges) if bible_ranges.strip() else []
         valid_ranges = [r for r in parsed_ranges if r.get('book') and r.get('chap')]
@@ -205,6 +209,7 @@ async def generate_ppt(
                 prs = Presentation(out_path)
                 applied = apply_bible_text(prs, all_verses)
                 prs.save(out_path)
+                del prs; gc.collect()
                 _log(f"   → 총 {applied}절 입력 완료")
 
         # ── 설교 제목 ─────────────────────────────────
@@ -236,6 +241,7 @@ async def generate_ppt(
             prs = Presentation(out_path)
             ok = replace_sermon_title(prs, sermon_title.strip(), sermon_ref_display)
             prs.save(out_path)
+            del prs; gc.collect()
             if not ok:
                 _log("   ⚠️ 설교 제목 슬라이드를 찾지 못했습니다.")
 
@@ -249,11 +255,14 @@ async def generate_ppt(
             prs = Presentation(out_path)
             applied_ss = apply_sermon_song(prs, score_path, sermon_song_title.strip())
             if applied_ss == -1:
+                del prs; gc.collect()
                 _log("   ⚠️ .ppt 변환 실패. LibreOffice가 설치되어 있는지 확인하세요.")
             elif applied_ss:
                 prs.save(out_path)
+                del prs; gc.collect()
                 _log(f"   → {applied_ss}슬라이드 삽입 완료")
             else:
+                del prs; gc.collect()
                 _log("   ⚠️ 설교찬양 슬라이드를 찾지 못했습니다.")
 
         # ── 성가대 자막 ───────────────────────────────
@@ -273,6 +282,7 @@ async def generate_ppt(
             prs = Presentation(out_path)
             applied = apply_choir_lyrics(prs, choir_blocks, choir_name, choir_song_title)
             prs.save(out_path)
+            del prs; gc.collect()
             _log(f"   → {applied}슬라이드 입력 완료")
 
         # ── 특송 ──────────────────────────────────────
@@ -299,34 +309,28 @@ async def generate_ppt(
                 ss_performer.strip(),
                 ss_blocks,
             )
+            gc.collect()
             if applied_ss2:
                 _log(f"   → {applied_ss2}슬라이드 가사 입력 완료")
             else:
                 _log("   → 제목만 입력 완료")
         else:
             delete_special_song(out_path)
+            gc.collect()
             _log("🚫 특송 없음 → 특송 구역 삭제")
 
         # ── 찬양팀 가사 (2부 전용) ────────────────────
         if part == '2bu' and praise_text.strip():
             songs = parse_praise_input(praise_text.strip())
-            # \x00(임시 줄바꿈 치환자) → \n 복원
             for song in songs:
                 song['title'] = song['title'].replace('\x00', '\n')
                 song['slides'] = [
                     [line.replace('\x00', '\n') for line in slide]
                     for slide in song['slides']
                 ]
-            # 디버그: 템플릿에서 praise region 확인
-            from worship_core import get_praise_region
-            prs_debug = Presentation(out_path)
-            ds, de = get_praise_region(prs_debug)
-            _log(f"[DEBUG] praise region: start={ds}, end={de}")
-            if ds is not None:
-                sep_sl = prs_debug.slides[ds]
-                _log(f"[DEBUG] sep shapes: {[sh.name for sh in sep_sl.shapes]}")
             _log(f"✨ 찬양팀 가사: {len(songs)}곡")
             applied = apply_praise_lyrics(out_path, songs)
+            gc.collect()
             _log(f"   → {applied}슬라이드 입력 완료")
 
         _log(f"\n✅ {label} 생성 완료!")

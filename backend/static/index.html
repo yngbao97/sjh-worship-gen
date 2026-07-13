@@ -180,6 +180,10 @@
       margin-top: 4px;
     }
 
+    input[type="number"]::-webkit-inner-spin-button,
+    input[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+    input[type="number"] { -moz-appearance: textfield; }
+
     input[type="text"],
     input[type="number"],
     textarea {
@@ -526,6 +530,74 @@
       );
     }
 
+    const BIBLE_BOOKS = [
+      { vol: 'gen', name: '창세기' }, { vol: 'exo', name: '출애굽기' }, { vol: 'lev', name: '레위기' },
+      { vol: 'num', name: '민수기' }, { vol: 'deu', name: '신명기' }, { vol: 'jos', name: '여호수아' },
+      { vol: 'jdg', name: '사사기' }, { vol: 'rut', name: '룻기' }, { vol: '1sa', name: '사무엘상' },
+      { vol: '2sa', name: '사무엘하' }, { vol: '1ki', name: '열왕기상' }, { vol: '2ki', name: '열왕기하' },
+      { vol: '1ch', name: '역대상' }, { vol: '2ch', name: '역대하' }, { vol: 'ezr', name: '에스라' },
+      { vol: 'neh', name: '느헤미야' }, { vol: 'est', name: '에스더' }, { vol: 'job', name: '욥기' },
+      { vol: 'psa', name: '시편' }, { vol: 'pro', name: '잠언' }, { vol: 'ecc', name: '전도서' },
+      { vol: 'sng', name: '아가' }, { vol: 'isa', name: '이사야' }, { vol: 'jer', name: '예레미야' },
+      { vol: 'lam', name: '예레미야애가' }, { vol: 'ezk', name: '에스겔' }, { vol: 'dan', name: '다니엘' },
+      { vol: 'hos', name: '호세아' }, { vol: 'jol', name: '요엘' }, { vol: 'amo', name: '아모스' },
+      { vol: 'oba', name: '오바댜' }, { vol: 'jnh', name: '요나' }, { vol: 'mic', name: '미가' },
+      { vol: 'nam', name: '나훔' }, { vol: 'hab', name: '하박국' }, { vol: 'zep', name: '스바냐' },
+      { vol: 'hag', name: '학개' }, { vol: 'zec', name: '스가랴' }, { vol: 'mal', name: '말라기' },
+      { vol: 'mat', name: '마태복음' }, { vol: 'mrk', name: '마가복음' }, { vol: 'luk', name: '누가복음' },
+      { vol: 'jhn', name: '요한복음' }, { vol: 'act', name: '사도행전' }, { vol: 'rom', name: '로마서' },
+      { vol: '1co', name: '고린도전서' }, { vol: '2co', name: '고린도후서' }, { vol: 'gal', name: '갈라디아서' },
+      { vol: 'eph', name: '에베소서' }, { vol: 'php', name: '빌립보서' }, { vol: 'col', name: '골로새서' },
+      { vol: '1th', name: '데살로니가전서' }, { vol: '2th', name: '데살로니가후서' },
+      { vol: '1ti', name: '디모데전서' }, { vol: '2ti', name: '디모데후서' }, { vol: 'tit', name: '디도서' },
+      { vol: 'phm', name: '빌레몬서' }, { vol: 'heb', name: '히브리서' }, { vol: 'jas', name: '야고보서' },
+      { vol: '1pe', name: '베드로전서' }, { vol: '2pe', name: '베드로후서' },
+      { vol: '1jn', name: '요한일서' }, { vol: '2jn', name: '요한이서' }, { vol: '3jn', name: '요한삼서' },
+      { vol: 'jud', name: '유다서' }, { vol: 'rev', name: '요한계시록' },
+    ];
+
+    function BookSearch({ value, onChange }) {
+      const [query, setQuery] = useState('');
+      const [open, setOpen] = useState(false);
+      const filtered = query
+        ? BIBLE_BOOKS.filter(b => b.name.includes(query))
+        : BIBLE_BOOKS;
+      const displayValue = value ? value.name : query;
+      return (
+        <div style={{ position: 'relative' }}>
+          <input
+            type="text"
+            value={displayValue}
+            placeholder="예: 창세기, 요한복음"
+            onChange={e => { setQuery(e.target.value); onChange(null); setOpen(true); }}
+            onFocus={() => setOpen(true)}
+            onBlur={() => setTimeout(() => setOpen(false), 150)}
+            autoComplete="off"
+          />
+          {open && filtered.length > 0 && (
+            <ul style={{
+              position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 100,
+              background: '#fff', border: '1px solid var(--border)', borderRadius: '6px',
+              boxShadow: '0 4px 12px rgba(0,0,0,0.12)', maxHeight: '220px', overflowY: 'auto',
+              margin: '2px 0', padding: 0, listStyle: 'none',
+            }}>
+              {filtered.map(b => (
+                <li key={b.vol}
+                  onMouseDown={() => { onChange(b); setQuery(''); setOpen(false); }}
+                  style={{
+                    padding: '8px 14px', cursor: 'pointer', fontSize: '14px',
+                    color: 'var(--text)', borderBottom: '1px solid var(--border)',
+                  }}
+                  onMouseEnter={e => e.currentTarget.style.background = 'var(--accent-light)'}
+                  onMouseLeave={e => e.currentTarget.style.background = ''}
+                >{b.name}</li>
+              ))}
+            </ul>
+          )}
+        </div>
+      );
+    }
+
     function Field({ label, hint, children }) {
       return (
         <div className="field-row">
@@ -573,9 +645,12 @@
       const [respNum, setRespNum] = useState('');
       const [hymn2, setHymn2] = useState('');
       const [sermonTitle, setSermonTitle] = useState('');
-      const [sermonRef, setSermonRef] = useState('');
-      const [bibleLabel, setBibleLabel] = useState('');
-      const [bibleText, setBibleText] = useState('');
+      const EMPTY_RANGE = () => ({ book: null, chap: '', start: '', end: '' });
+      const [bibleRanges, setBibleRanges] = useState([EMPTY_RANGE()]);
+      const updateRange = (i, patch) =>
+        setBibleRanges(prev => prev.map((r, idx) => idx === i ? { ...r, ...patch } : r));
+      const addRange    = () => setBibleRanges(prev => [...prev, EMPTY_RANGE()]);
+      const removeRange = (i) => setBibleRanges(prev => prev.filter((_, idx) => idx !== i));
       const [sermonSongTitle, setSermonSongTitle] = useState('');
       const [sermonSongFile, setSermonSongFile] = useState(null);
       const [choir1, setChoir1] = useState('호산나찬양대');
@@ -629,9 +704,8 @@
         formData.append('resp_num', respNum);
         formData.append('hymn2', hymn2);
         formData.append('sermon_title', sermonTitle);
-        formData.append('sermon_ref', sermonRef);
-        formData.append('bible_label', bibleLabel);
-        formData.append('bible_text', bibleText);
+        formData.append('sermon_ref', '');
+        formData.append('bible_ranges', JSON.stringify(bibleRanges));
         formData.append('sermon_song_title', sermonSongTitle);
         formData.append('choir_lyrics_1bu', choirLyrics1);
         formData.append('choir_lyrics_2bu', choirLyrics2);
@@ -687,8 +761,8 @@
         } finally {
           setGenerating(false);
         }
-      }, [generating, dateStr, hymn1, respNum, hymn2, sermonTitle, sermonRef,
-          bibleLabel, bibleText, sermonSongTitle, sermonSongFile,
+      }, [generating, dateStr, hymn1, respNum, hymn2, sermonTitle,
+          bibleRanges, sermonSongTitle, sermonSongFile,
           choir1, choir2, choirLyrics1, choirLyrics2, praiseText,
           specialSong1, specialSong2, specialSongType1, specialSongType2,
           specialSongPerformer1, specialSongPerformer2, specialSongLyrics1, specialSongLyrics2,
@@ -698,7 +772,7 @@
         if (generating) return;
         setGenerating(true);
         setModalStatus('loading');
-        setLogs(['🚀 1부 & 2부 동시 생성 시작...']);
+        setLogs(['🚀 1부 → 2부 순차 생성 시작...']);
 
         const makeFD = (part) => {
           const fd = new FormData();
@@ -708,9 +782,8 @@
           fd.append('resp_num', respNum);
           fd.append('hymn2', hymn2);
           fd.append('sermon_title', sermonTitle);
-          fd.append('sermon_ref', sermonRef);
-          fd.append('bible_label', bibleLabel);
-          fd.append('bible_text', bibleText);
+          fd.append('sermon_ref', '');
+          fd.append('bible_ranges', JSON.stringify(bibleRanges));
           fd.append('sermon_song_title', sermonSongTitle);
           fd.append('choir_lyrics_1bu', choirLyrics1);
           fd.append('choir_lyrics_2bu', choirLyrics2);
@@ -731,13 +804,10 @@
         };
 
         try {
-          const [r1, r2] = await Promise.all([
-            fetch(`${API_BASE}/generate`, { method: 'POST', body: makeFD('1bu') }),
-            fetch(`${API_BASE}/generate`, { method: 'POST', body: makeFD('2bu') }),
-          ]);
-
           const newLogs = [];
-          for (const [resp, label] of [[r1, '1부'], [r2, '2부']]) {
+          for (const [partKey, label] of [['1bu', '1부'], ['2bu', '2부']]) {
+            setLogs(prev => [...prev, `⏳ ${label} 생성 중...`]);
+            const resp = await fetch(`${API_BASE}/generate`, { method: 'POST', body: makeFD(partKey) });
             const data = await resp.json();
             if (!resp.ok) {
               newLogs.push(`❌ ${label} 오류: ${data.detail || resp.statusText}`);
@@ -763,8 +833,8 @@
         } finally {
           setGenerating(false);
         }
-      }, [generating, dateStr, hymn1, respNum, hymn2, sermonTitle, sermonRef,
-          bibleLabel, bibleText, sermonSongTitle, sermonSongFile,
+      }, [generating, dateStr, hymn1, respNum, hymn2, sermonTitle,
+          bibleRanges, sermonSongTitle, sermonSongFile,
           choir1, choir2, choirLyrics1, choirLyrics2, praiseText,
           specialSong1, specialSong2, specialSongType1, specialSongType2,
           specialSongPerformer1, specialSongPerformer2, specialSongLyrics1, specialSongLyrics2,
@@ -819,7 +889,7 @@
                 <span className="section-badge badge-2bu">1·2부 개별</span>
               </div>
 
-              <Field label="찬양팀 가사" hint="2부 초반 · 빈 줄로 슬라이드 구분">
+              <Field label="찬양팀 가사 (2부)" hint="2부 초반 · 빈 줄로 슬라이드 구분">
                 <textarea
                   value={praiseText}
                   onChange={e => setPraiseText(e.target.value)}
@@ -843,7 +913,7 @@
                 </div>
               </Field>
 
-              <Field label="성가대 자막" hint="1부 · [제목] 첫 줄, 빈 줄로 슬라이드 구분">
+              <Field label="성가대 자막 (1부)" hint="[제목] 첫 줄, 빈 줄로 슬라이드 구분">
                 <textarea
                   value={choirLyrics1}
                   onChange={e => setChoirLyrics1(e.target.value)}
@@ -852,7 +922,7 @@
                 />
               </Field>
 
-              <Field label="성가대 자막" hint="2부 · [제목] 첫 줄, 빈 줄로 슬라이드 구분">
+              <Field label="성가대 자막 (2부)" hint="[제목] 첫 줄, 빈 줄로 슬라이드 구분">
                 <textarea
                   value={choirLyrics2}
                   onChange={e => setChoirLyrics2(e.target.value)}
@@ -900,23 +970,41 @@
                   placeholder="설교 제목을 입력하세요" />
               </Field>
 
-              <Field label="설교 본문" hint="예: 벧후 1:1-7">
-                <input type="text" value={sermonRef} onChange={e => setSermonRef(e.target.value)}
-                  placeholder="예: 벧후 1:1-7" />
-              </Field>
-
-              <Field label="봉독 구절 표기" hint="예: 룻기 3">
-                <input type="text" value={bibleLabel} onChange={e => setBibleLabel(e.target.value)}
-                  placeholder="예: 베드로후서 1" />
-              </Field>
-
-              <Field label="성경 봉독 본문" hint="Godpia에서 복사 붙여넣기">
-                <textarea
-                  value={bibleText}
-                  onChange={e => setBibleText(e.target.value)}
-                  placeholder={"1여기에 성경 본문을 붙여넣으세요\n2다음 절..."}
-                  rows={5}
-                />
+              <Field label="성경봉독 본문">
+                {bibleRanges.map((r, i) => (
+                  <div key={i} style={{ marginBottom: '10px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <div style={{ flex: 1 }}>
+                        <BookSearch value={r.book} onChange={book => updateRange(i, { book })} />
+                      </div>
+                      {bibleRanges.length > 1 && (
+                        <button type="button" onClick={() => removeRange(i)}
+                          style={{ background: 'none', border: '1px solid var(--border)', borderRadius: '4px',
+                            color: 'var(--text-muted)', cursor: 'pointer', padding: '4px 8px', fontSize: '13px', flexShrink: 0 }}>×</button>
+                      )}
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '6px' }}>
+                      <input type="number" min="1" placeholder="장"
+                        value={r.chap} onChange={e => updateRange(i, { chap: e.target.value })}
+                        style={{ width: '64px' }} />
+                      <span style={{ color: 'var(--text-muted)', fontSize: '13px' }}>장</span>
+                      <input type="number" min="1" placeholder="시작절"
+                        value={r.start} onChange={e => updateRange(i, { start: e.target.value })}
+                        style={{ width: '72px' }} />
+                      <span style={{ color: 'var(--text-muted)', fontWeight: 'bold' }}>~</span>
+                      <input type="number" min="1" placeholder="마지막절"
+                        value={r.end} onChange={e => updateRange(i, { end: e.target.value })}
+                        style={{ width: '72px' }} />
+                      <span style={{ color: 'var(--text-muted)', fontSize: '13px' }}>절</span>
+                    </div>
+                  </div>
+                ))}
+                <button type="button" onClick={addRange}
+                  style={{ marginTop: '4px', background: 'none', border: '1px dashed var(--border)',
+                    borderRadius: '6px', color: 'var(--text-muted)', cursor: 'pointer',
+                    padding: '6px 14px', fontSize: '13px', width: '100%' }}>
+                  + 범위 추가
+                </button>
               </Field>
             </div>
 
