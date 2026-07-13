@@ -1,5 +1,7 @@
 # 주일예배 PPT 생성기 (웹 버전)
 
+**서비스 링크: https://sjh-worship-gen.onrender.com/**
+
 ## 배포 방법 (Railway)
 
 ### 1단계: 환경변수 준비
